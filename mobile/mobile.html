@@ -1,0 +1,3021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cythera — Mac OS 7.6</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0;
+            width: 100vw; height: 100dvh;
+            background-color: #000;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+            font-family: 'Courier New', Courier, monospace;
+        }
+ 
+        #app-container {
+            width: 100vw; height: 100dvh;
+            position: relative;
+        }
+ 
+        /* STARTUP OVERLAY */
+        #start-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100vw; height: 100dvh;
+            background: rgba(0, 0, 0, 0.9);
+            color: #FCE688;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            pointer-events: auto;
+        }
+        #start-overlay-text {
+            border: 2px solid #8B6914;
+            background: rgba(59, 0, 0, 0.9);
+            padding: 30px 50px;
+            text-align: center;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(139, 105, 20, 0.5);
+        }
+        #start-overlay h1 { margin: 0 0 10px 0; font-size: 1.8rem; }
+        #start-overlay p { margin: 0; font-size: 1rem; opacity: 0.8; }
+ 
+        /* CROSSHAIR */
+        #center-crosshair {
+            position: absolute; top: 50%; left: 50%; width: 20px; height: 20px;
+            transform: translate(-50%, -50%); pointer-events: none; z-index: 50; display: none; 
+        }
+        #center-crosshair::before, #center-crosshair::after {
+            content: ''; position: absolute; background: rgba(252, 230, 136, 0.8);
+        }
+        #center-crosshair::before { top: 9px; left: 0; width: 20px; height: 2px; }
+        #center-crosshair::after { top: 0; left: 9px; width: 2px; height: 20px; }
+ 
+ 
+        /* BOTTOM LAYER */
+        #emulator-wrapper { position: absolute; top: 0; left: 0; width: 100vw; height: 100dvh; overflow: hidden; z-index: 1; }
+        #pan-zoom-container { width: 100%; height: 100%; transform-origin: top left; will-change: transform; position: absolute; top: 0; left: 0; }
+        /* overflow:hidden because the iframe is deliberately bigger than this
+           box and offset into it -- see positionIframe(). */
+        #scale-target { transform-origin: top left; position: absolute; top: 0; left: 0; overflow: hidden; }
+        #mac-iframe, #gl-canvas, #touch-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; display: block; }
+        /* File mode: infinite-mac's own page, filling the window, so its own
+           Load File control can be tapped. Nothing else on this page is in the
+           way while it is up. */
+        /* File mode shows a magnified STRIP of the emulator's own control row,
+           not the whole emulator. Scaling the whole frame to fit the window
+           made the control about nine pixels tall -- unreadable, and on a
+           phone it landed under the browser's own toolbar. So the iframe is
+           scaled UP, translated so the row lands in the strip, and clipped to
+           the row with clip-path (which clips hit-testing too, so taps outside
+           it fall through to the panel behind). See setFileMode(). */
+        #mac-iframe.file-mode {
+            position: fixed; left: 0; top: 0; transform-origin: top left;
+            opacity: 1 !important; z-index: 2500; background: #000;
+        }
+        /* Behind the strip, never over it: the strip is the one thing on
+           screen that must not be covered. */
+        #file-banner {
+            position: fixed; inset: 0; z-index: 2400; background: rgba(20, 0, 0, 0.96);
+            color: #FCE688; padding: 18px; pointer-events: auto; font-size: 0.82rem;
+            line-height: 1.5; display: flex; flex-direction: column;
+            align-items: center; justify-content: flex-start; text-align: center;
+        }
+        #file-banner[hidden] { display: none; }
+        #file-banner-inner { max-width: min(460px, 94vw); margin-top: 6vh; }
+        #file-banner h3 { margin: 0 0 8px; font-size: 1rem; }
+        #file-banner .btn { margin-top: 14px; padding: 12px 0; width: min(300px, 80vw); }
+        /* Fixed just above the strip rather than in the panel's flow, so it
+           points at the control row and not at whichever button happens to be
+           last. */
+        #file-arrow {
+            position: fixed; left: 0; right: 0; text-align: center; z-index: 2440;
+            font-size: 1.6rem; line-height: 1; opacity: 0.9; pointer-events: none;
+        }
+        #file-arrow[hidden] { display: none; }
+        /* Frames the strip so it reads as a piece of the Mac, not part of this
+           page's chrome. */
+        #file-strip-frame {
+            position: fixed; left: 0; right: 0; z-index: 2450; pointer-events: none;
+            border-top: 2px solid #8B6914; border-bottom: 2px solid #8B6914;
+            background: #000;
+        }
+        #file-strip-frame[hidden] { display: none; }
+        #mac-iframe { image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; image-rendering: pixelated; }
+        #gl-canvas { pointer-events: none; display: none; }
+        #touch-overlay { z-index: 10; touch-action: none; pointer-events: none; }
+        /* The emulated Mac draws its own cursor inside the screen, so the
+           browser's arrow on top of it gives you two pointers that disagree.
+           It is hidden while the pointer maps straight onto the screen, and
+           shown again in Pan View, where the emulated cursor stays on the
+           crosshair and the real one is what you drag the view with. */
+        #touch-overlay.active { pointer-events: auto; cursor: none; }
+        #touch-overlay.active.pan-cursor { cursor: grab; }
+        #touch-overlay.active.pan-cursor.panning { cursor: grabbing; }
+ 
+ 
+        /* TOP LAYER */
+        #hud-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; 
+            z-index: 100; opacity: 0; transition: opacity 0.5s ease-in;
+        }
+        #hud-layer.active { opacity: 1; }
+        /* With a keyboard and a mouse the two floating windows are in the way
+           rather than in use. The settings panel stays: it is what brings
+           them back. */
+        #hud-layer.controls-hidden .hud-window { display: none; }
+ 
+        .hud-window {
+            position: absolute; pointer-events: auto; background-color: rgba(59, 0, 0, 0.85); 
+            border: 2px solid #8B6914; box-shadow: 4px 4px 10px rgba(0,0,0,0.7); display: flex;
+            flex-direction: column; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+            min-width: 140px; min-height: 140px;
+        }
+ 
+        .hud-header {
+            background-color: #C4A464; color: #3B0000; font-weight: bold; font-size: 0.75rem;
+            padding: 4px 8px; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 2px solid #8B6914; touch-action: none;
+        }
+        
+        .drag-handle { flex-grow: 1; cursor: move; }
+        .drag-handle::before { content: '≡ '; opacity: 0.7; }
+        .mode-toggle { background: #1E0059; color: #FCE688; border: 1px solid #8B6914; font-size: 0.6rem; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-family: inherit; }
+        .mode-toggle.active { background: #7A0000; }
+        .hud-content { flex: 1; position: relative; padding: 6px; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+        .resize-handle { position: absolute; bottom: 0; right: 0; width: 20px; height: 20px; cursor: se-resize; background: linear-gradient(135deg, transparent 50%, #C4A464 50%); touch-action: none; }
+ 
+        .btn-grid { display: grid; gap: 4px; width: 100%; height: 100%; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
+        .gesture-area { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; background: rgba(255, 230, 136, 0.05); touch-action: none; cursor: crosshair; }
+        #joy-base { position: absolute; width: 50%; height: 50%; max-width: 100px; max-height: 100px; border: 2px solid rgba(252, 230, 136, 0.3); border-radius: 50%; transform: translate(-50%, -50%); display: none; pointer-events: none; }
+        #joy-stick { position: absolute; width: 25%; height: 25%; max-width: 40px; max-height: 40px; background: rgba(252, 230, 136, 0.6); border-radius: 50%; transform: translate(-50%, -50%); display: none; pointer-events: none; }
+        #gesture-canvas { width: 100%; height: 100%; pointer-events: none; }
+ 
+        .btn {
+            background-color: #1E0059; border: 2px solid #8B6914; border-top-color: #C4A464; border-left-color: #C4A464;
+            color: #FCE688; font-size: 0.7rem; font-weight: bold; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; user-select: none; cursor: pointer;
+            box-shadow: 1px 1px 3px rgba(0,0,0,0.5); text-align: center; min-height: 35px;
+        }
+        .btn span.emoji { font-size: 1.2rem; margin-bottom: 2px; }
+        .btn:active { background-color: #150040; box-shadow: none; border-color: #8B6914; border-top-color: #3B0000; border-left-color: #3B0000; }
+        .active-action { background-color: #7A0000 !important; border-color: #FCE688 !important; }
+ 
+        #settings-drawer {
+            position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); background: rgba(59, 0, 0, 0.95); border: 2px solid #8B6914; border-bottom: none;
+            /* No transition on `transform`: it existed to animate the slide off
+               the bottom edge, and collapsing no longer moves the panel. Left
+               in place it animated the un-centring as the panel was picked up,
+               so for 300ms the panel was somewhere neither the pointer nor the
+               code thought it was. */
+            border-radius: 12px 12px 0 0; z-index: 1000; width: 90%; max-width: 450px; backdrop-filter: blur(4px); pointer-events: auto;
+        }
+        /* Collapsing hides the buttons where the panel stands. It used to slide
+           the panel off the bottom edge, which stops meaning anything once the
+           panel can be anywhere. */
+        #settings-drawer.collapsed .settings-content { display: none; }
+        #settings-drawer.collapsed .settings-handle { border-bottom: none; }
+        .settings-handle { height: 28px; color: #FCE688; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 0.8rem; cursor: move; border-bottom: 1px solid rgba(196, 164, 100, 0.3); touch-action: none; }
+        .settings-handle::before { content: '≡ '; opacity: 0.7; }
+        .settings-content { display: flex; flex-wrap: wrap; justify-content: space-around; padding: 10px; gap: 8px; }
+        .settings-btn { flex: 1 1 30%; padding: 8px 0; font-size: 0.7rem; height: auto; }
+ 
+        #action-toast {
+            position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%); background: rgba(252, 230, 136, 0.9); color: #3B0000; padding: 10px 20px;
+            font-size: 1.5rem; font-weight: bold; border: 2px solid #8B6914; border-radius: 8px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 200;
+        }
+        #hidden-keyboard { position: absolute; top: -1000px; opacity: 0; pointer-events: none; }
+
+        #start-status { margin-top: 12px !important; font-size: 0.8rem !important; opacity: 0.65 !important; }
+        #start-overlay.ready #start-status { opacity: 0.9 !important; }
+        #start-overlay:not(.ready) #start-title { opacity: 0.45; }
+
+        /* Help, and the confirmation that replaced confirm() ------------------
+           A native confirm() is a modal system alert: on iOS it steals focus,
+           and every touch handler on the page is mid-gesture when it appears. */
+        #help-panel, #modal-confirm {
+            position: absolute; inset: 0; z-index: 2000; display: flex;
+            align-items: center; justify-content: center;
+            background: rgba(0, 0, 0, 0.75); pointer-events: auto;
+        }
+        #help-panel[hidden], #modal-confirm[hidden], #drop-hint[hidden] { display: none; }
+        #help-inner, #modal-inner {
+            position: relative; background: rgba(59, 0, 0, 0.97); border: 2px solid #8B6914;
+            border-radius: 12px; color: #FCE688; padding: 18px 20px;
+            max-width: min(560px, 92vw); max-height: 84dvh; overflow-y: auto;
+            -webkit-overflow-scrolling: touch; font-size: 0.82rem; line-height: 1.5;
+        }
+        #help-inner h2 { margin: 0 0 10px; font-size: 1.05rem; }
+        #help-inner h3 { margin: 16px 0 4px; font-size: 0.85rem; color: #C4A464; }
+        #help-inner p, #help-inner ul { margin: 4px 0; }
+        #help-inner ul { padding-left: 18px; }
+        #help-inner li { margin: 2px 0; }
+        #help-inner code { background: rgba(0,0,0,.35); padding: 0 3px; border-radius: 3px; }
+        #help-inner a { color: #FCE688; }
+        #help-close {
+            position: absolute; top: 8px; right: 8px; background: #1E0059; color: #FCE688;
+            border: 1px solid #8B6914; border-radius: 4px; font-family: inherit;
+            font-size: 0.9rem; width: 32px; height: 32px; cursor: pointer;
+        }
+        #modal-inner { max-width: min(460px, 88vw); text-align: center; }
+        #modal-text { white-space: pre-line; margin: 0; }
+        #modal-input {
+            width: 100%; margin-top: 12px; padding: 8px; box-sizing: border-box;
+            background: #1E0059; color: #FCE688; border: 1px solid #8B6914;
+            border-radius: 4px; font-family: inherit; font-size: 0.8rem;
+        }
+        #modal-input[hidden] { display: none; }
+        #modal-buttons { display: flex; gap: 10px; margin-top: 14px; }
+        #modal-buttons .btn { flex: 1; padding: 10px 0; }
+
+        /* The card that appears when this page is holding a disk image: from
+           explorer.html, from the file picker, or from a file dropped
+           anywhere but the screen. It sits at the bottom so the drag to the
+           screen above it is short and upward, and it is deliberately not a
+           modal -- the emulator has to stay droppable while it is up. */
+        #disk-card {
+            position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+            z-index: 1600; background: rgba(59, 0, 0, 0.97); border: 2px solid #8B6914;
+            border-radius: 10px; color: #FCE688; padding: 10px 12px; pointer-events: auto;
+            font-size: 0.75rem; line-height: 1.45; max-width: min(460px, 92vw);
+        }
+        #disk-card[hidden] { display: none; }
+        #disk-card .disk-name { font-weight: bold; word-break: break-all; }
+        #disk-card .disk-why { opacity: 0.82; margin: 4px 0 8px; }
+        #disk-chip {
+            display: block; text-align: center; cursor: grab; user-select: none;
+            background: rgba(252, 230, 136, 0.94); color: #3B0000; border: 2px solid #8B6914;
+            border-radius: 8px; padding: 10px 12px; font-weight: bold; margin-top: 8px;
+        }
+        #disk-chip:active { cursor: grabbing; }
+        /* The rule above sets display:block, which beats the UA stylesheet's
+           [hidden] { display: none } on specificity -- so hiding the chip with
+           the hidden property did nothing at all, and a phone was shown a drag
+           it cannot perform. */
+        #disk-chip[hidden] { display: none; }
+        #disk-card-buttons { display: flex; gap: 8px; }
+        #disk-card-buttons .btn { flex: 1; padding: 8px 0; font-size: 0.72rem; }
+
+        #drop-hint {
+            position: absolute; left: 50%; top: 16px; transform: translateX(-50%); z-index: 1500;
+            background: rgba(252, 230, 136, 0.94); color: #3B0000; border: 2px solid #8B6914;
+            border-radius: 8px; padding: 8px 16px; font-weight: bold; font-size: 0.8rem;
+            pointer-events: none;
+        }
+
+        .btn:focus-visible, #help-close:focus-visible, .mode-toggle:focus-visible {
+            outline: 3px solid #FCE688; outline-offset: 2px;
+        }
+        .btn.disabled { opacity: 0.4; }
+        /* .btn sets display:flex, which beats the UA stylesheet's
+           [hidden] { display: none } on specificity -- the same trap that left
+           the drag chip visible on a phone. */
+        .btn[hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+ 
+<div id="app-container">
+ 
+    <div id="start-overlay">
+        <div id="start-overlay-text">
+            <h1 id="start-title">▶ TAP OR CLICK TO START</h1>
+            <p id="start-sub">Mac OS 7.6 • Quadra 650</p>
+            <p id="start-status">Downloading the emulator and the Cythera disk…</p>
+        </div>
+    </div>
+
+    <div id="emulator-wrapper">
+        <div id="pan-zoom-container">
+            <div id="scale-target">
+                <!-- src is set by buildEmbedUrl() so the initial load and the
+                     rebuild after a speed change cannot drift apart; they used
+                     to be two hand-written copies of the same 300-character
+                     URL, and both carried the same wrong parameter name. -->
+                <iframe width="640" id="mac-iframe" title="Cythera running on an emulated Macintosh"
+                    allow="autoplay; cross-origin-isolated" frameborder="0"></iframe>
+                <canvas id="gl-canvas"></canvas>
+                <div id="touch-overlay"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="center-crosshair"></div>
+ 
+    <div id="hud-layer">
+        <div class="hud-window" id="hud-dpad" style="left: 10px; bottom: 50px; width: 160px; height: 180px;">
+            <div class="hud-header"><span class="drag-handle">MOVE</span><button class="mode-toggle">Gestures</button></div>
+            <div class="hud-content">
+                <div class="btn-grid">
+                    <div class="btn dir-btn" data-code="Numpad7">↖️</div><div class="btn dir-btn" data-code="Numpad8">⬆️</div><div class="btn dir-btn" data-code="Numpad9">↗️</div>
+                    <div class="btn dir-btn" data-code="Numpad4">⬅️</div><div class="btn" data-code="Space">⏱️</div><div class="btn dir-btn" data-code="Numpad6">➡️</div>
+                    <div class="btn dir-btn" data-code="Numpad1">↙️</div><div class="btn dir-btn" data-code="Numpad2">⬇️</div><div class="btn dir-btn" data-code="Numpad3">↘️</div>
+                </div>
+                <div class="gesture-area" id="move-gesture-zone"><div id="joy-base"></div><div id="joy-stick"></div></div>
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+ 
+        <div class="hud-window" id="hud-actions" style="right: 10px; bottom: 50px; width: 180px; height: 180px;">
+            <div class="hud-header"><span class="drag-handle">ACTIONS</span><button class="mode-toggle">Gestures</button></div>
+            <div class="hud-content">
+                <div class="btn-grid">
+                    <div class="btn action-btn" data-code="KeyG"><span class="emoji">💰</span>Get</div><div class="btn action-btn" data-code="KeyT"><span class="emoji">💬</span>Talk</div><div class="btn action-btn" data-code="KeyL"><span class="emoji">👁️</span>Look</div>
+                    <div class="btn action-btn" data-code="KeyU"><span class="emoji">🖐️</span>Use</div><div class="btn action-btn" data-code="KeyD"><span class="emoji">🫳</span>Drop</div><div class="btn action-btn" data-code="KeyA"><span class="emoji">⚔️</span>Atk</div>
+                    <div class="btn action-btn" data-code="KeyC"><span class="emoji">✨</span>Cast</div><div class="btn" id="kb-toggle"><span class="emoji">⌨️</span>Keyb</div><div class="btn" data-code="Enter"><span class="emoji">↩️</span>Ent</div>
+                </div>
+                <div class="gesture-area" id="action-gesture-zone"><canvas id="gesture-canvas"></canvas></div>
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+        <div id="action-toast"></div>
+ 
+        <div id="settings-drawer" class="collapsed">
+            <div class="settings-handle" id="settings-handle">⚙️ DISPLAY & SETTINGS ⚙️</div>
+            <div class="settings-content">
+                <div class="btn settings-btn" id="touch-mode-toggle"><span class="emoji">👆</span>Direct</div>
+                <div class="btn settings-btn" id="filter-toggle"><span class="emoji">📺</span>Crisp</div>
+                <div class="btn settings-btn" id="pause-btn"><span class="emoji">⏸️</span>Pause</div>
+                <div class="btn settings-btn" id="speed-btn"><span class="emoji">⚡</span>4x</div>
+                <!-- The button that used to sit here said "Audio" and sent
+                     emulator_mute / emulator_set_volume. Neither exists: the
+                     embed API is emulator_pause/unpause, mouse, key and
+                     load_disk, and there is no volume setting. The messages
+                     were dropped on the floor and the button only ever changed
+                     its own label. Fullscreen is something the page can
+                     actually do. -->
+                <div class="btn settings-btn" id="fullscreen-btn"><span class="emoji">⛶</span>Full</div>
+                <div class="btn settings-btn" id="disk-btn"><span class="emoji">💿</span>Disk</div>
+                <div class="btn settings-btn" id="open-file-btn"><span class="emoji">📂</span>File</div>
+                <div class="btn settings-btn" id="install-btn"><span class="emoji">📥</span>Install</div>
+                <div class="btn settings-btn" id="patch-btn" hidden><span class="emoji">✎</span>Patch</div>
+                <div class="btn settings-btn" id="zipinstall-btn"><span class="emoji">📦</span>From file</div>
+                <div class="btn settings-btn" id="controls-btn"><span class="emoji">🎮</span>Pads</div>
+                <div class="btn settings-btn" id="reset-layout-btn"><span class="emoji">↺</span>Reset</div>
+                <div class="btn settings-btn" id="help-btn"><span class="emoji">❔</span>Help</div>
+            </div>
+        </div>
+        <input type="text" id="hidden-keyboard" autocomplete="off" spellcheck="false" autocorrect="off">
+    </div>
+
+    <div id="help-panel" hidden>
+        <div id="help-inner">
+            <button id="help-close" aria-label="Close">✕</button>
+            <h2>Cythera</h2>
+
+            <h3>Moving and acting</h3>
+            <p>The two floating windows are the numeric keypad and Cythera's action keys. Drag a
+            window by its <b>≡</b> header, resize it from the corner, or press <b>Gestures</b> in
+            its header to swap the buttons for a thumb control. The settings panel moves the same
+            way — drag its <b>≡</b> bar to put it somewhere it is not in the way, or tap the bar
+            to fold it down to a strip. <b>Pads</b> hides both floating windows, which is what you
+            want once you are using a keyboard; <b>Reset</b> puts everything back where it started.
+            Where you leave them is remembered on this device.</p>
+            <ul id="gesture-legend"></ul>
+
+            <h3>Touching the screen</h3>
+            <p>These three settings describe what a <i>finger</i> does. <b>Direct</b> puts the
+            pointer where your finger is — best for the game world. <b>Trackpad</b> moves the
+            pointer relatively and holds for 0.4 s to start a drag — best for menus and small
+            targets. <b>Pan View</b> keeps the pointer on the crosshair and moves the view
+            instead. Two fingers pinch to zoom anywhere, and a two-finger tap is a right-click.</p>
+
+            <h3>Mouse and keyboard</h3>
+            <p>A mouse already points, so it is always Direct — the pointer inside the Mac
+            follows yours, including while no button is down, and both buttons go through as
+            themselves. Trackpad means nothing to a mouse and is ignored by one; Pan View still
+            applies, and there a drag moves the view. The <b>scroll wheel zooms</b>, which is the
+            desktop half of the pinch.</p>
+            <p>Your keyboard is passed straight to the emulated Mac, so Cythera's numeric keypad
+            and its letter commands work as they did on the original — the floating windows are
+            for when you have no keyboard, not instead of one. The browser keeps <code>F5</code>,
+            <code>F11</code>, <code>F12</code> and its own reload/new-tab/close shortcuts.
+            Everything on this page can also be reached with Tab and Enter.</p>
+
+            <h3>The picture</h3>
+            <p><b>Crisp</b> shows the emulator's own pixels, unaltered. <b>Undith</b> runs the
+            same undither <a href="explorer.html">the data viewer</a> uses on the
+            game's artwork. Mac OS draws a shade it has no palette entry for as a checkerboard
+            of two colours it does have; this reads that pattern back as the tone it was
+            standing in for, and can tell it apart from linework, so a one-pixel highlight
+            survives where a blur would have taken it. It needs WebGL.</p>
+
+            <h3>Loading your own Cythera</h3>
+            <p><b>Open</b> takes a file from this device — a disk image, an
+            <code>.hqx</code>, anything. So does dropping a file anywhere on this page, and so
+            does <b>Send that disk to mobile.html</b> in the data viewer, which hands over an
+            edited archive as a disk without going through your Downloads folder at all. However
+            it arrives, it lands in a card at the bottom of the screen with one step left:
+            <b>drag the card onto the screen</b>.</p>
+            <p><b>File</b> is the one that works on a phone. It hands the whole window to the
+            emulator's own page for a moment so you can tap its <b>Load File</b> control, which
+            opens your Files app. Nothing restarts and nothing running is lost. The file has to
+            be saved to the device first, which is what <b>Save the file</b> on the card is for —
+            the Mac's picker reads your file system, not this page's memory.</p>
+            <p>Why the detour, rather than this page simply loading the file: the emulator will
+            take a disk from a URL, but infinitemac.org's own server is what fetches that URL, not
+            your browser, so it can never see a file on your device. The only other route is a
+            real drop onto the emulator, and a drop belongs to the page being dropped on, which
+            is infinitemac.org's and not this one — no page can start that drop for you, and on a
+            touch screen there is no drag to start. So the file picker inside the emulator is the
+            door, and this page's job is to get you to it.</p>
+            <p><b>Drag a file onto the emulator</b> — a disk image (<code>.dsk</code>,
+            <code>.img</code>, <code>.iso</code>) mounts, and anything else, including the
+            <code>Cythera.hqx</code> and <code>Cythera&nbsp;Data.hqx</code> in this project's
+            <code>sources/</code> folder, is copied into the emulated Mac's <i>Downloads</i>
+            folder for StuffIt Expander to unpack. This is a desktop-only path: it is the
+            emulator's own file drop, and phones have nothing to drag with.</p>
+            <p><b>Disk</b> loads a disk image from a URL. The URL has to be reachable from the
+            public internet, because infinitemac.org's own server fetches it in ranges — it is not
+            your browser doing the download, so a <code>file://</code> path or a private address
+            will not work.</p>
+            <p>The same archive this emulator runs can be taken apart, resource by resource, in
+            <a href="explorer.html">the data viewer</a> beside this file — it reads
+            <code>Cythera Data.hqx</code> directly.</p>
+            <p><b>Playing your own edits, in two moves.</b> The viewer can edit a resource and
+            write the whole archive back out, and its <i>Data file</i> menu hands you the result
+            as a <code>.dsk</code> disk image. Drag that onto the emulator, then press
+            <b>Install</b> in this panel. The disk carries an AppleScript as well as the archive;
+            Install types at the emulated Finder — no pointer, so nothing depends on where the
+            windows are — until Script Editor is running it, and the script finds the folder
+            holding the Cythera application on any mounted disk, replaces the
+            <code>Cythera Data</code> in it, and starts the game. It takes about forty seconds
+            and the toast says where it has got to.</p>
+            <p>It types, so leave the Finder in front while it runs; whatever is frontmost gets
+            the keystrokes. If you would rather do it by hand, everything it does is a drag from
+            the export disk's window into the game's folder, and the script is readable — open
+            <b>Install and Play</b> on the disk and Script Editor shows it. Mac OS may say it
+            could not rebuild the export disk's desktop file; the disk is read-only, that is what
+            it does, and the files are fine.</p>
+
+            <h3>The URL</h3>
+            <p>This page reads <code>?cdrom=</code>, <code>?disk=</code>, <code>?machine=</code>
+            and <code>?speed=</code>, so a particular build of the game can be bookmarked. Your
+            window layout and settings are remembered on this device.
+            <code>?handoff=1</code> is what the data viewer's <b>Send that disk to mobile.html</b>
+            opens: it collects the disk image that page left for this one and puts it in the
+            card at the bottom of the screen.</p>
+        </div>
+    </div>
+
+    <div id="modal-confirm" hidden>
+        <div id="modal-inner">
+            <p id="modal-text"></p>
+            <input type="text" id="modal-input" hidden autocomplete="off" spellcheck="false">
+            <div id="modal-buttons">
+                <div class="btn" id="modal-cancel">Cancel</div>
+                <div class="btn" id="modal-ok">OK</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="file-banner" hidden>
+        <div id="file-banner-inner">
+            <h3>Load a file into the Mac</h3>
+            <div id="file-banner-text"></div>
+
+            <div class="btn" id="file-banner-zoom">Show the whole emulator</div>
+            <div class="btn" id="file-banner-done">Done</div>
+        </div>
+    </div>
+    <div id="file-arrow" hidden>▼</div>
+    <div id="file-strip-frame" hidden></div>
+
+    <div id="disk-card" hidden>
+        <div class="disk-name" id="disk-card-name"></div>
+        <div class="disk-why" id="disk-card-why"></div>
+        <div id="disk-card-buttons">
+            <div class="btn" id="disk-card-save">Save the file</div>
+            <div class="btn" id="disk-card-load">Load it</div>
+            <div class="btn" id="disk-card-dismiss">Dismiss</div>
+        </div>
+        <div id="disk-chip" draggable="true" hidden>⇧ or drag this onto the screen</div>
+    </div>
+    <input type="file" id="disk-file-input" hidden>
+
+    <div id="drop-hint" hidden>Drop it on the emulator to load it into the Mac</div>
+</div>
+ 
+<script>
+    /* ======================================================================
+       A touch shell around an infinitemac.org embed, running Cythera on an
+       emulated Quadra 650.
+
+       Everything sent to the iframe below is part of infinite-mac's documented
+       embed API. The source of truth is the mihaip/infinite-mac checkout
+       beside this file:
+
+         src/embed-types.ts                  the message types, both directions
+         src/defs/run-def.ts                 the iframe query parameters
+         src/emulator/common/key-codes.ts    the key codes an emulator accepts
+         src/emulator/common/emulators.ts    the speed values and their names
+
+       `node utilities/mobile_api_check.mjs` re-reads those four files and
+       fails if this page sends anything they do not define. That check was
+       written because three things here had quietly drifted out of the API:
+       a misspelled query parameter, two messages that do not exist, and a
+       speed control labelled with numbers that mean something else.
+    ====================================================================== */
+
+    const iframe = document.getElementById('mac-iframe');
+    const scaleTarget = document.getElementById('scale-target');
+    const panZoomContainer = document.getElementById('pan-zoom-container');
+    const touchOverlay = document.getElementById('touch-overlay');
+    const hudLayer = document.getElementById('hud-layer');
+    const startOverlay = document.getElementById('start-overlay');
+    const glCanvas = document.getElementById('gl-canvas');
+    const centerCrosshair = document.getElementById('center-crosshair');
+
+    // ---- what to run ---------------------------------------------------
+    const EMBED_ORIGIN = 'https://infinitemac.org';
+    const DEFAULT_CDROM = 'https://gardenmirror.oldapplestuff.com/games/cythera_infinitemac.dsk';
+    // Basilisk II's speed table, copied from MACEMU_SPEED_CONFIG. The old
+    // control cycled [-2,-1,0,1,2] and printed the raw number, so it offered
+    // "Spd: -1" for what the emulator calls All Out, "Spd: 2" for 4x, and hid
+    // 8x/16x/32x entirely.
+    const SPEEDS = [[-2,'Default'], [0,'1x'], [1,'2x'], [2,'4x'], [3,'8x'], [4,'16x'], [5,'32x'], [-1,'All Out']];
+    const PREFS_KEY = 'cythera-mobile';
+
+    function loadPrefs() {
+        try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; }
+        catch (e) { return {}; }
+    }
+    function savePrefs(patch) {
+        try { localStorage.setItem(PREFS_KEY, JSON.stringify(Object.assign(loadPrefs(), patch))); }
+        catch (e) { /* private mode, or storage disabled -- not worth reporting */ }
+    }
+
+    const urlParams = new URLSearchParams(location.search);
+    const prefs = loadPrefs();
+    const config = {
+        disk:    urlParams.get('disk')    || 'Mac OS 7.6',
+        machine: urlParams.get('machine') || 'Quadra 650',
+        cdrom:   urlParams.get('cdrom')   || DEFAULT_CDROM,
+    };
+    let currentSpeed = 2;
+    {
+        const wanted = urlParams.has('speed') ? Number(urlParams.get('speed')) : prefs.speed;
+        if (SPEEDS.some(([v]) => v === wanted)) currentSpeed = wanted;
+    }
+    const speedName = v => (SPEEDS.find(([s]) => s === v) || [v, String(v)])[1];
+
+    /* ---- SharedArrayBuffer, and the reload that buys it -------------------
+       `coi-serviceworker.js` explains what this is for and carries the
+       measurements: without cross-origin isolation the emulator runs at about
+       1/30th of its speed, and that is the whole of why this page felt slower
+       than infinitemac.org itself. The worker adds the two headers that this
+       origin cannot otherwise send.
+
+       Isolation is decided by the headers on the *navigation response*, so a
+       page that registers the worker during its own load is already too late:
+       it has to come back once through a worker that is now controlling it.
+       That reload happens on the first visit only -- afterwards an activated
+       worker controls the navigation from the start and this returns
+       immediately.
+
+       Two things keep it from being a hazard. `?coi=0` unregisters and stays
+       on the slow path, which is the escape hatch if the worker ever misbehaves
+       in a browser nobody here has. And the reload is attempted once per tab:
+       if it comes back still not isolated -- some browsers refuse the headers,
+       some refuse the worker -- the flag stops it looping and the page simply
+       runs slowly, which is what it did before.
+
+       The emulator is not started until this settles, so the first visit does
+       not download the machine and the disk twice. */
+    const COI_RELOAD_KEY = 'cythera-mobile-coi-reload';
+    function coiTried() {
+        try { return sessionStorage.getItem(COI_RELOAD_KEY) === '1'; } catch (e) { return true; }
+    }
+    function markCoiTried() {
+        try { sessionStorage.setItem(COI_RELOAD_KEY, '1'); } catch (e) { /* private mode */ }
+    }
+
+    function settleCrossOriginIsolation() {
+        const off = urlParams.get('coi') === '0';
+        if (!('serviceWorker' in navigator)) return Promise.resolve();
+        if (off) {
+            return navigator.serviceWorker.getRegistrations()
+                .then(rs => Promise.all(rs.map(r => r.unregister())))
+                .catch(() => {});
+        }
+        if (window.crossOriginIsolated) return Promise.resolve();   // the worker is already doing its job
+        if (coiTried()) return Promise.resolve();                   // tried this tab and it did not take
+        return new Promise(resolve => {
+            let done = false;
+            const finish = () => { if (!done) { done = true; resolve(); } };
+            // A worker that never activates must not hold the page hostage.
+            setTimeout(finish, 4000);
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (done) return;
+                done = true;                 // resolve nothing: the reload replaces this page
+                markCoiTried();
+                location.reload();
+            });
+            navigator.serviceWorker.register('coi-serviceworker.js').then(() => {
+                // Already controlling but not isolated: this load came from the
+                // network before the worker was in place, so one reload fixes it.
+                if (!done && navigator.serviceWorker.controller) {
+                    done = true;
+                    markCoiTried();
+                    location.reload();
+                }
+            }).catch(finish);
+        });
+    }
+
+    function buildEmbedUrl(speed) {
+        const u = new URL(EMBED_ORIGIN + '/embed');
+        u.searchParams.set('disk', config.disk);
+        u.searchParams.set('infinite_hd', 'true');
+        u.searchParams.set('machine', config.machine);
+        // `paused`, not `pause`. run-def.ts reads searchParams.get("paused"),
+        // so the old spelling was ignored: the machine booted and ran behind
+        // the TAP TO START overlay, and the emulator_unpause sent on tap was
+        // unpausing something that had never been paused.
+        u.searchParams.set('paused', 'true');
+        // The undither needs the frames, and the frames are also the
+        // only place the emulator states the resolution it actually came up
+        // with. They are not free: a whole screen is copied across origins on
+        // every drawn frame. The parameter is read once at boot, so switching
+        // it with the filter would mean restarting the Mac to change a display
+        // setting -- a worse trade than the copies.
+        u.searchParams.set('screen_update_messages', 'true');
+        /* An explicit screenSize, and it is not about the size.
+
+           On the bare /embed route infinite-mac sets screenSize to the string
+           "embed", which puts its ScreenFrame in fullscreen-bezel mode, and
+           that mode sets --screen-controls-display: none. Its own **Load
+           File** control -- the one that opens a file picker, the only way a
+           file on this device can reach the emulator at all -- is in the DOM
+           with zero size and cannot be tapped.
+
+           Passing a WIDTHxHEIGHT instead makes screenSize an object rather
+           than the string "embed", the bezel becomes an ordinary one, and that
+           control is rendered and tappable. Nothing else about the machine
+           changes: the emulator comes up at exactly the size asked for, which
+           is the size this page was going to be given anyway.
+
+           What does change is the layout INSIDE the iframe, and it is
+           constant rather than something to measure: the frame is
+           (w+22) x (h+22) and the screen sits 11px inside it. positionIframe()
+           below shifts the iframe by that much so the emulated screen still
+           lands exactly on #scale-target, and the controls -- which hang below
+           the frame -- are clipped until the File button asks for them. */
+        u.searchParams.set('screenSize', baseWidth + 'x' + baseHeight);
+        u.searchParams.set('settings', JSON.stringify({
+            swapControlAndCommand: false,
+            speed: speed,
+            useMouseDeltas: false,
+            trackpadMode: false
+        }));
+        if (config.cdrom) u.searchParams.set('cdrom', config.cdrom);
+        return u.toString();
+    }
+
+    // ---- talking to the emulator ---------------------------------------
+    // Messages sent before the emulator has installed its listener are lost.
+    // Nothing used to wait for that, so a fast tap on TAP TO START threw the
+    // unpause away and the screen sat there. Anything sent early is now held
+    // and flushed when emulator_loaded arrives.
+    let emulatorReady = false;
+    let pendingMessages = [];
+
+    function post(msg) {
+        if (!emulatorReady) {
+            if (pendingMessages.length < 64) pendingMessages.push(msg);
+            return;
+        }
+        const w = iframe.contentWindow;
+        if (w) w.postMessage(msg, EMBED_ORIGIN);
+    }
+
+    function setStartStatus(text, ready) {
+        const el = document.getElementById('start-status');
+        if (el) el.textContent = text;
+        startOverlay.classList.toggle('ready', !!ready);
+    }
+
+    window.addEventListener('message', e => {
+        if (e.origin !== EMBED_ORIGIN || !e.data) return;
+        if (e.data.type === 'emulator_loaded') {
+            emulatorReady = true;
+            setStartStatus('Ready — tap or click to play', true);
+            const queued = pendingMessages;
+            pendingMessages = [];
+            for (const m of queued) post(m);
+        } else if (e.data.type === 'emulator_screen') {
+            // The only place the emulated screen's real size is ever stated.
+            // Every touch and every click is turned into a coordinate on that
+            // screen, so a page that guesses it wrong puts the pointer
+            // somewhere else entirely -- which is what happened whenever the
+            // emulator settled on a resolution other than the one asked for.
+            if (e.data.width && e.data.height) applyScreenSize(e.data.width, e.data.height);
+            drawScreen(e.data);
+        }
+    });
+
+    function startEmulator() {
+        startOverlay.style.display = 'none';
+        post({ type: 'emulator_unpause' });
+        // A click to wake the emulated Mac up. It has to happen *somewhere*,
+        // and with no move first that somewhere is 0,0 -- the corner of the
+        // menu bar, so starting the game pulled down the Apple menu.
+        // Through the outbox, not posted raw: it is what puts the move ahead
+        // of the press and keeps the press and its release in separate sync
+        // windows. Posting these directly would race the queued move and put
+        // the click back at 0,0.
+        setCursor(screenWidth / 2, screenHeight / 2);
+        mouseButton(0, true);
+        mouseButton(0, false);
+        touchOverlay.classList.add('active');
+        hudLayer.classList.add('active');
+    }
+    startOverlay.addEventListener('pointerdown', e => { e.preventDefault(); startEmulator(); });
+    startOverlay.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startEmulator(); }
+    });
+    startOverlay.tabIndex = 0;
+
+    // ---- geometry ------------------------------------------------------
+    // The emulated screen's resolution is fixed when the machine boots, from
+    // the iframe's size, so baseWidth/baseHeight must not change afterwards.
+    // Only the CSS scale follows the window -- which it now does: these were
+    // computed once at load, so rotating a phone left every touch coordinate
+    // mapped to the wrong place on the emulated screen.
+    const baseWidth = 640;
+    const baseHeight = Math.round(baseWidth * (window.innerHeight / window.innerWidth));
+    // What the machine actually came up with. It starts as the size that was
+    // asked for and is corrected by the first frame the emulator reports.
+    let screenWidth = baseWidth, screenHeight = baseHeight;
+    let cssScale = 1;
+    scaleTarget.style.width = `${baseWidth}px`;
+    scaleTarget.style.height = `${baseHeight}px`;
+    glCanvas.width = baseWidth; glCanvas.height = baseHeight;
+
+    /* The iframe is bigger than the box it sits in, and offset into it.
+
+       Asking for an explicit screenSize (see buildEmbedUrl) is what makes
+       infinite-mac's own Load File control exist, and it also gives its
+       ScreenFrame an ordinary bezel: measured across six iframe sizes, the
+       frame is always (screen + 22) square with the screen 11px inside it, and
+       the frame is left-anchored and vertically centred. So the iframe is made
+       exactly frame-sized and pulled up and left by 11, which puts the
+       emulated screen on #scale-target's own origin -- the same pixel-for-pixel
+       mapping the coordinate arithmetic has always assumed, unchanged.
+
+       The controls hang below the frame, outside the iframe, so they are
+       invisible until file mode makes the iframe fill the window. */
+    const FRAME_INSET = 11;
+    function positionIframe() {
+        if (iframe.classList.contains('file-mode')) return;
+        iframe.style.left = `${-FRAME_INSET}px`;
+        iframe.style.top = `${-FRAME_INSET}px`;
+        iframe.style.width = `${screenWidth + FRAME_INSET * 2}px`;
+        iframe.style.height = `${screenHeight + FRAME_INSET * 2}px`;
+    }
+    positionIframe();
+
+    function applyScreenSize(w, h) {
+        if (w === screenWidth && h === screenHeight) return;
+        screenWidth = w; screenHeight = h;
+        // The iframe fills #scale-target, so making that box the size of the
+        // emulated screen makes one pixel here one pixel there, and the
+        // coordinate arithmetic below exact rather than approximately right.
+        scaleTarget.style.width = `${w}px`;
+        scaleTarget.style.height = `${h}px`;
+        glCanvas.width = w; glCanvas.height = h;
+        positionIframe();
+        setSize(w, h);
+        setCursor(cursorX, cursorY);
+        applyCssScale();
+    }
+
+    function applyCssScale() {
+        // Fit rather than fill, so a rotated phone letterboxes instead of
+        // cropping the menu bar off the top of the emulated screen.
+        cssScale = Math.min(window.innerWidth / screenWidth, window.innerHeight / screenHeight);
+        const left = Math.max(0, (window.innerWidth - screenWidth * cssScale) / 2);
+        const top = Math.max(0, (window.innerHeight - screenHeight * cssScale) / 2);
+        scaleTarget.style.transform = `translate(${left}px, ${top}px) scale(${cssScale})`;
+    }
+    applyCssScale();
+
+    let resizeTimer = null;
+    function onViewportChange() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+            applyCssScale();
+            // A phone rotating, or its browser toolbar sliding away, moves the
+            // strip; it is positioned from the window, so it has to follow.
+            if (inFileMode) layOutFileMode();
+            pzScale = 1; pzX = 0; pzY = 0; updatePanZoom();
+            if (touchMode === 2) updatePanCursor();
+        }, 120);
+    }
+    window.addEventListener('resize', onViewportChange);
+    window.addEventListener('orientationchange', onViewportChange);
+
+    function sendKey(code, isKeyDown) {
+        post({ type: isKeyDown ? 'emulator_key_down' : 'emulator_key_up', code: code });
+    }
+
+    // emulator_mouse_move carries an absolute position *and* a delta. Basilisk
+    // II -- the Quadra 650's emulator -- reads the absolute pair, which is why
+    // sending only x/y worked, but the deltas are part of the message and the
+    // machines that are relative-only (Previous, DingusPPC, PearPC) read
+    // nothing else. Sending both costs two properties and means ?machine=
+    // can point at one of those without the pointer going dead.
+    /* Everything this page sends between two of the emulator's input syncs is
+       collapsed into ONE state before the emulated Mac ever sees it. From
+       updateInputBufferWithEvents() in the emulator's own common.ts: the FIRST
+       mousemove of a batch is kept and every later one is dropped, and each
+       mousedown/mouseup overwrites the last, because what reaches the Mac is a
+       button LEVEL and not an edge.
+
+       Two things follow, and both were happening:
+
+         a press and the release after it, inside one window, cancel out --
+         the level never changes and the click simply does not happen;
+
+         a release and the NEXT press, inside one window, lose the release --
+         the level stays down, so the Mac believes the button has been held
+         since the previous tap and the cursor arriving somewhere else is a
+         DRAG from there to here.
+
+       That is why Direct mode dragged in random directions on a tap: it is
+       the one mode that presses on touch-down and releases on touch-up with
+       nothing in between, so both collapses were live. The other modes went
+       through clickOnce(), whose 50ms straddled a sync window by luck.
+
+       So button transitions are spaced out in time here, and every transition
+       carries the position with it. There is no batch a transition can share
+       with its own opposite.
+
+       "Carries the position with it" is literal, and it was not always so.
+       The outbox used to hold only {button, down} and flush whatever position
+       happened to be pending when the transition's turn came round -- which
+       is the position of wherever the finger is NOW, not where it was when
+       that transition was queued. Tapping twice in quick succession therefore
+       produced this, recorded off the real emulator with a 40ms gap between
+       two taps at different places:
+
+           +  0ms  mouse_move (164,726)     tap A lands
+           +  2ms  mouse_down
+           + 68ms  mouse_move (542,907)     <- tap B's position, sent first
+           + 69ms  mouse_up                 <- so A is released at B
+           +140ms  mouse_down               tap B presses, already there
+
+       The Mac saw one drag from A to B and then a click, rather than two
+       clicks: an icon dragged across the desktop, an item picked up in
+       Cythera. Each entry now records cursorX/cursorY at the moment it was
+       queued, so a release that has been waiting out the gap cannot be towed
+       to wherever the finger went while it waited. */
+    /* How long a button level has to stand before the opposite one may be
+       sent. It has to outlast the emulator's input window, and that window is
+       not fixed -- input is consumed when the guest next polls, so a busy
+       machine has a longer one. 70ms covers a window of up to 50ms (a guest
+       polling at 20Hz); past that a physical mouse click would be swallowed
+       too, so the machine is not usable at that point anyway.
+
+       It costs nothing that can be felt: a press is sent the moment it
+       happens, and only the release waits. */
+    const BUTTON_GAP_MS = 70;
+    let lastSentX = null, lastSentY = null;
+    let pendingMove = null, moveFrame = null;
+    const buttonOutbox = [];
+    let buttonTimer = null, lastButtonAt = 0;
+
+    function postMove(x, y) {
+        const rx = Math.round(x), ry = Math.round(y);
+        // emulator_mouse_move carries an absolute position *and* a delta.
+        // Basilisk II -- the Quadra 650's emulator -- reads the absolute pair,
+        // which is why sending only x/y worked, but the deltas are part of the
+        // message and the machines that are relative-only (Previous,
+        // DingusPPC, PearPC) read nothing else.
+        const deltaX = lastSentX === null ? 0 : rx - lastSentX;
+        const deltaY = lastSentY === null ? 0 : ry - lastSentY;
+        lastSentX = rx; lastSentY = ry;
+        post({ type: 'emulator_mouse_move', x: rx, y: ry, deltaX: deltaX, deltaY: deltaY });
+    }
+
+    function sendMove() {
+        if (moveFrame !== null) { cancelAnimationFrame(moveFrame); moveFrame = null; }
+        if (!pendingMove) return;
+        const m = pendingMove;
+        pendingMove = null;
+        postMove(m.x, m.y);
+    }
+
+    function moveMouse(x, y) {
+        pendingMove = {x: x, y: y};
+        // While a button transition is queued the wire belongs to it: a move
+        // sent now would arrive in the transition's own sync window and be the
+        // position it is applied at. The newest position is kept, and pump
+        // sends it once the outbox is empty again.
+        if (buttonOutbox.length) return;
+        // One move per frame, carrying the newest position. Sending every
+        // pointermove only fed the emulator more than it keeps -- and what it
+        // keeps is the OLDEST of the batch, so the cursor trailed the finger.
+        if (moveFrame === null) moveFrame = requestAnimationFrame(() => { moveFrame = null; sendMove(); });
+    }
+
+    function mouseButton(button, down) {
+        // cursorX/cursorY, not pendingMove: this is where the pointer is at
+        // the instant the transition is asked for, and it is what the
+        // transition must be applied at however long it waits. See the long
+        // comment above.
+        buttonOutbox.push({button: button, down: down, x: cursorX, y: cursorY});
+        pumpButtons();
+    }
+
+    function pumpButtons() {
+        if (buttonTimer !== null || !buttonOutbox.length) return;
+        const wait = BUTTON_GAP_MS - (Date.now() - lastButtonAt);
+        if (wait > 0) {
+            buttonTimer = setTimeout(() => { buttonTimer = null; pumpButtons(); }, wait);
+            return;
+        }
+        const next = buttonOutbox.shift();
+        if (moveFrame !== null) { cancelAnimationFrame(moveFrame); moveFrame = null; }
+        // First in the batch, so the guest applies the position and then the
+        // button level -- and it is the transition's OWN position, sent
+        // unconditionally so the press cannot rely on a move that went out in
+        // some earlier sync window.
+        postMove(next.x, next.y);
+        // A move still waiting for the same place has just been sent; letting
+        // it stand would put a second, identical move on the wire after every
+        // press, which is what a tap looks like from here.
+        if (pendingMove && Math.round(pendingMove.x) === Math.round(next.x)
+                        && Math.round(pendingMove.y) === Math.round(next.y)) pendingMove = null;
+        post({ type: next.down ? 'emulator_mouse_down' : 'emulator_mouse_up', button: next.button });
+        lastButtonAt = Date.now();
+        if (buttonOutbox.length) { pumpButtons(); return; }
+        // The outbox is empty; let the finger's real position catch up.
+        if (pendingMove) moveMouse(pendingMove.x, pendingMove.y);
+    }
+
+    // Every key this page can send, so that a key held when the page is hidden
+    // or a pointer is cancelled can be released. A movement key stuck down in
+    // Cythera means the character keeps walking, which is the single most
+    // annoying way for a touch control to fail.
+    const heldKeys = new Set();
+    function pressKey(code) { heldKeys.add(code); sendKey(code, true); }
+    function releaseKey(code) { if (heldKeys.delete(code)) sendKey(code, false); }
+    function releaseAllKeys() { for (const code of Array.from(heldKeys)) releaseKey(code); }
+    // A mouse button is as bad to leave down as a key: in the Finder it is a
+    // window being dragged for as long as the page is in the background.
+    function releaseEverything() { releaseAllKeys(); releaseAllButtons(); }
+    document.addEventListener('visibilitychange', () => { if (document.hidden) releaseEverything(); });
+    window.addEventListener('blur', releaseEverything);
+
+    // Every control on this page is a <div>, so each one has to say how it is
+    // operated. Doing that in one place is what stops a control from being
+    // wired to `touchend` alone -- invisible to a mouse -- which is what the
+    // keyboard button was, and gives all of them Enter/Space for free.
+    function onTap(el, fn) {
+        if (!el) return;
+        el.addEventListener('pointerdown', e => { e.preventDefault(); fn(e); });
+        el.tabIndex = 0;
+        el.setAttribute('role', 'button');
+        el.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(e); }
+        });
+    }
+
+    // Windows Drag/Resize/Toggles
+    // Pointer events rather than touch events: the same code now works with a
+    // mouse, so the windows can be arranged on a desktop too -- they could only
+    // ever be moved by a finger. Pointer capture also means a fast drag that
+    // outruns the handle keeps going instead of stopping dead.
+    const hudWindows = [];
+    document.querySelectorAll('.hud-window').forEach(win => {
+        const dragHandle = win.querySelector('.drag-handle'), resizeHandle = win.querySelector('.resize-handle');
+        const toggleBtn = win.querySelector('.mode-toggle'), btnGrid = win.querySelector('.btn-grid'), gestureArea = win.querySelector('.gesture-area');
+        hudWindows.push(win);
+
+        makeDraggable(win, dragHandle, {onEnd: saveHudLayout});
+
+        let resizeId = null, resizeStartX = 0, resizeStartY = 0, initialWidth = 0, initialHeight = 0;
+        resizeHandle.addEventListener('pointerdown', e => {
+            e.preventDefault(); e.stopPropagation();
+            resizeId = e.pointerId;
+            resizeHandle.setPointerCapture?.(e.pointerId);
+            resizeStartX = e.clientX; resizeStartY = e.clientY;
+            initialWidth = win.offsetWidth; initialHeight = win.offsetHeight;
+        });
+        resizeHandle.addEventListener('pointermove', e => {
+            if (resizeId !== e.pointerId) return;
+            e.preventDefault(); e.stopPropagation();
+            win.style.width = `${Math.max(140, initialWidth + (e.clientX - resizeStartX))}px`;
+            win.style.height = `${Math.max(140, initialHeight + (e.clientY - resizeStartY))}px`;
+            if (win.id === 'hud-actions' && gestureArea.style.display === 'block') resizeGestureCanvas();
+        });
+        const endResize = e => {
+            if (resizeId !== e.pointerId) return;
+            resizeId = null;
+            saveHudLayout();
+        };
+        resizeHandle.addEventListener('pointerup', endResize);
+        resizeHandle.addEventListener('pointercancel', endResize);
+
+        onTap(toggleBtn, () => {
+            setWindowMode(win, toggleBtn.classList.toggle('active'));
+            saveHudLayout();
+        });
+    });
+
+    /* Dragging, for anything with a grab handle. The settings panel wants the
+       same behaviour as the floating windows, and it also has to keep working
+       as a button -- so a press that never travels more than a few pixels is
+       reported as a tap instead of a move. */
+    function makeDraggable(el, handle, opts) {
+        const options = opts || {};
+        let id = null, fromX = 0, fromY = 0, originLeft = 0, originTop = 0, travelled = false;
+        handle.addEventListener('pointerdown', e => {
+            e.preventDefault(); e.stopPropagation();
+            id = e.pointerId;
+            handle.setPointerCapture?.(e.pointerId);
+            fromX = e.clientX; fromY = e.clientY;
+            const rect = el.getBoundingClientRect();
+            originLeft = rect.left; originTop = rect.top;
+            travelled = false;
+            el.style.zIndex = 200;
+        });
+        handle.addEventListener('pointermove', e => {
+            if (id !== e.pointerId) return;
+            e.preventDefault();
+            const dx = e.clientX - fromX, dy = e.clientY - fromY;
+            if (!travelled && Math.hypot(dx, dy) <= 5) return;
+            travelled = true;
+            placeWindow(el, originLeft + dx, originTop + dy);
+        });
+        const end = e => {
+            if (id !== e.pointerId) return;
+            id = null;
+            el.style.zIndex = '';
+            if (travelled) { if (options.onEnd) options.onEnd(); }
+            else if (options.onTap) options.onTap();
+        };
+        handle.addEventListener('pointerup', end);
+        handle.addEventListener('pointercancel', end);
+    }
+
+    function setWindowMode(win, gestures) {
+        const btnGrid = win.querySelector('.btn-grid'), gestureArea = win.querySelector('.gesture-area');
+        const toggleBtn = win.querySelector('.mode-toggle');
+        toggleBtn.classList.toggle('active', gestures);
+        if (gestures) {
+            btnGrid.style.display = 'none'; gestureArea.style.display = 'block';
+            if (win.id === 'hud-actions') resizeGestureCanvas();
+            // A dragging finger that leaves the joystick still has to stop the
+            // character; releasing every held key when the mode changes is the
+            // cheap way to be sure nothing is left down.
+            stopMovement();
+            releaseAllKeys();
+        } else { btnGrid.style.display = 'grid'; gestureArea.style.display = 'none'; }
+    }
+
+    // Keep a window on screen. Without this a window dragged to the bottom of a
+    // tall phone was simply gone after rotating to landscape, with no way back.
+    function placeWindow(win, left, top) {
+        const w = win.offsetWidth, h = win.offsetHeight;
+        const x = Math.max(0, Math.min(window.innerWidth - Math.min(w, window.innerWidth), left));
+        const y = Math.max(0, Math.min(window.innerHeight - Math.min(h, window.innerHeight), top));
+        win.style.left = `${x}px`; win.style.top = `${y}px`;
+        win.style.bottom = 'auto'; win.style.right = 'auto';
+        // The settings panel is centred with a transform until it is moved.
+        win.style.transform = 'none';
+    }
+
+    function saveHudLayout() {
+        const layout = {};
+        const drawer = document.getElementById('settings-drawer');
+        if (drawer && drawer.style.left) {
+            const r = drawer.getBoundingClientRect();
+            layout.drawer = {left: Math.round(r.left), top: Math.round(r.top)};
+        }
+        layout.drawerCollapsed = drawer ? drawer.classList.contains('collapsed') : true;
+        layout.controlsHidden = hudLayer.classList.contains('controls-hidden');
+        for (const win of hudWindows) {
+            const r = win.getBoundingClientRect();
+            layout[win.id] = {
+                left: Math.round(r.left), top: Math.round(r.top),
+                width: Math.round(r.width), height: Math.round(r.height),
+                gestures: win.querySelector('.mode-toggle').classList.contains('active')
+            };
+        }
+        savePrefs({ hud: layout });
+    }
+
+    function restoreHudLayout() {
+        const layout = loadPrefs().hud;
+        if (!layout) return;
+        const drawer = document.getElementById('settings-drawer');
+        if (drawer) {
+            drawer.classList.toggle('collapsed', layout.drawerCollapsed !== false);
+            if (layout.drawer) placeWindow(drawer, layout.drawer.left, layout.drawer.top);
+        }
+        if (layout.controlsHidden) setControlsHidden(true);
+        for (const win of hudWindows) {
+            const s = layout[win.id];
+            if (!s) continue;
+            win.style.width = `${s.width}px`; win.style.height = `${s.height}px`;
+            placeWindow(win, s.left, s.top);
+            if (s.gestures) setWindowMode(win, true);
+        }
+    }
+
+    // Joystick Logic
+    const moveZone = document.getElementById('move-gesture-zone'), joyBase = document.getElementById('joy-base'), joyStick = document.getElementById('joy-stick');
+    let moveStartX = 0, moveStartY = 0, currentMoveKey = null;
+    function applyMovementKey(angleDeg, dist) {
+        if (dist < 15) return null; 
+        if (angleDeg >= -22.5 && angleDeg < 22.5) return 'Numpad6'; if (angleDeg >= 22.5 && angleDeg < 67.5) return 'Numpad3'; 
+        if (angleDeg >= 67.5 && angleDeg < 112.5) return 'Numpad2'; if (angleDeg >= 112.5 && angleDeg < 157.5) return 'Numpad1'; 
+        if (angleDeg >= 157.5 || angleDeg < -157.5) return 'Numpad4'; if (angleDeg >= -157.5 && angleDeg < -112.5) return 'Numpad7'; 
+        if (angleDeg >= -112.5 && angleDeg < -67.5) return 'Numpad8'; if (angleDeg >= -67.5 && angleDeg < -22.5) return 'Numpad9'; 
+        return null;
+    }
+    // Pointer events, so the joystick works under a mouse as well as a thumb,
+    // and so a drag that leaves the window keeps steering instead of stopping
+    // dead with the direction key still held.
+    let joyId = null;
+    function joyPoint(e) {
+        const rect = moveZone.getBoundingClientRect();
+        return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+    moveZone.addEventListener('pointerdown', e => {
+        if (joyId !== null) return;
+        e.preventDefault();
+        joyId = e.pointerId;
+        moveZone.setPointerCapture?.(e.pointerId);
+        const p = joyPoint(e);
+        moveStartX = p.x; moveStartY = p.y;
+        joyBase.style.left = `${moveStartX}px`; joyBase.style.top = `${moveStartY}px`;
+        joyStick.style.left = `${moveStartX}px`; joyStick.style.top = `${moveStartY}px`;
+        joyBase.style.display = 'block'; joyStick.style.display = 'block';
+    });
+    moveZone.addEventListener('pointermove', e => {
+        if (joyId !== e.pointerId) return;
+        e.preventDefault();
+        const p = joyPoint(e);
+        const dx = p.x - moveStartX, dy = p.y - moveStartY;
+        const dist = Math.hypot(dx, dy), angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
+        const displayDist = Math.min(dist, moveZone.offsetWidth / 3);
+        joyStick.style.left = `${moveStartX + Math.cos(angleDeg * Math.PI / 180) * displayDist}px`;
+        joyStick.style.top = `${moveStartY + Math.sin(angleDeg * Math.PI / 180) * displayDist}px`;
+        const newKey = applyMovementKey(angleDeg, dist);
+        if (newKey !== currentMoveKey) {
+            if (currentMoveKey) releaseKey(currentMoveKey);
+            if (newKey) pressKey(newKey);
+            currentMoveKey = newKey;
+        }
+    });
+    function stopMovement(e) {
+        if (e && joyId !== null && e.pointerId !== joyId) return;
+        joyId = null;
+        if (currentMoveKey) { releaseKey(currentMoveKey); currentMoveKey = null; }
+        joyBase.style.display = 'none'; joyStick.style.display = 'none';
+    }
+    moveZone.addEventListener('pointerup', stopMovement);
+    moveZone.addEventListener('pointercancel', stopMovement);
+ 
+    /* ---- Gesture Logic -------------------------------------------------
+       A stroke is reduced to the sequence of directions it turns through --
+       "DRU" is down, then right, then up, which is the shape of a U -- and
+       matched against this table, most specific first.
+
+       ORDER IS THE WHOLE POINT. The tests used to run with the loosest one
+       third, so `dirs.includes("DR")` claimed LOOK before USE ("DRU") or CAST
+       ("LDR") were ever considered, and both of those gestures were dead: you
+       drew a U and the game looked at something. Anything matching a longer
+       shape has to be tested before the shorter shape it contains, and TALK
+       ("RDL") before CAST, which also accepts a bare "DL".
+
+       The help panel's legend is generated from this same array, so a gesture
+       cannot be listed but unrecognised, or recognised but undocumented. */
+    const GESTURES = [
+        { key: 'KeyA', name: 'Attack', hint: 'tap',                     tap: true },
+        { key: 'KeyG', name: 'Get',    hint: 'swipe up',                match: d => d === 'U' || d === 'LU' || d === 'RU' },
+        { key: 'KeyD', name: 'Drop',   hint: 'swipe down',              match: d => d === 'D' || d === 'LD' || d === 'RD' },
+        { key: 'KeyU', name: 'Use',    hint: 'draw a U',                match: d => d.includes('DRU') || d.includes('DLU') },
+        { key: 'KeyT', name: 'Talk',   hint: 'right, down, left',       match: d => d.includes('RDL') || d.includes('RD') },
+        { key: 'KeyC', name: 'Cast',   hint: 'draw a C: left, down, right', match: d => d.includes('LDR') || d.includes('LD') || d.includes('DL') },
+        { key: 'KeyL', name: 'Look',   hint: 'draw an L: down, then right', match: d => d.includes('DR') }
+    ];
+    function recogniseGesture(dirs, isTap) {
+        for (const g of GESTURES) {
+            if (g.tap) { if (isTap) return g; continue; }
+            if (isTap) continue;
+            if (g.match(dirs)) return g;
+        }
+        return null;
+    }
+
+    const actionZone = document.getElementById('action-gesture-zone'), gestureCanvas = document.getElementById('gesture-canvas'), gCtx = gestureCanvas.getContext('2d'), actionToast = document.getElementById('action-toast');
+    let gesturePoints = [];
+    function resizeGestureCanvas() { gestureCanvas.width = actionZone.clientWidth; gestureCanvas.height = actionZone.clientHeight; }
+    function showToast(text) { actionToast.textContent = text; actionToast.style.opacity = '1'; setTimeout(() => actionToast.style.opacity = '0', 700); }
+    // Same again: a stroke can be drawn with a mouse, a stylus or a finger,
+    // and pointer capture means one that runs off the edge of the window is
+    // still the stroke you drew rather than half of it.
+    let gestureId = null;
+    function gesturePoint(e) {
+        const rect = actionZone.getBoundingClientRect();
+        return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+    function clearStroke() { gCtx.clearRect(0, 0, gestureCanvas.width, gestureCanvas.height); }
+    actionZone.addEventListener('pointerdown', e => {
+        if (gestureId !== null) return;
+        e.preventDefault();
+        gestureId = e.pointerId;
+        actionZone.setPointerCapture?.(e.pointerId);
+        gesturePoints = [gesturePoint(e)];
+        clearStroke();
+        gCtx.beginPath(); gCtx.moveTo(gesturePoints[0].x, gesturePoints[0].y);
+        gCtx.strokeStyle = '#FCE688'; gCtx.lineWidth = 4; gCtx.lineCap = 'round'; gCtx.lineJoin = 'round';
+    });
+    actionZone.addEventListener('pointermove', e => {
+        if (gestureId !== e.pointerId) return;
+        e.preventDefault();
+        const pt = gesturePoint(e);
+        gesturePoints.push(pt); gCtx.lineTo(pt.x, pt.y); gCtx.stroke();
+    });
+    actionZone.addEventListener('pointercancel', e => {
+        if (gestureId !== e.pointerId) return;
+        gestureId = null; gesturePoints = []; clearStroke();
+    });
+    actionZone.addEventListener('pointerup', e => {
+        if (gestureId !== e.pointerId) return;
+        gestureId = null;
+        clearStroke();
+        if (gesturePoints.length === 0) return;
+        let dirs = "", currentDir = null, lastPt = gesturePoints[0];
+        const first = gesturePoints[0], last = gesturePoints[gesturePoints.length - 1];
+        const totalDist = Math.hypot(last.x - first.x, last.y - first.y);
+        for (let i = 1; i < gesturePoints.length; i++) {
+            const dx = gesturePoints[i].x - lastPt.x, dy = gesturePoints[i].y - lastPt.y;
+            if (Math.abs(dx) > 15 || Math.abs(dy) > 15) {
+                const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'R' : 'L') : (dy > 0 ? 'D' : 'U');
+                if (dir !== currentDir) { dirs += dir; currentDir = dir; }
+                lastPt = gesturePoints[i];
+            }
+        }
+        const hit = recogniseGesture(dirs, totalDist < 15 && gesturePoints.length < 10);
+        if (hit) { showToast(hit.name); pressKey(hit.key); setTimeout(() => releaseKey(hit.key), 50); }   // keys are queued by the emulator, not collapsed
+        else { showToast("?"); }
+    });
+ 
+    /* ---- Undither -------------------------------------------------------
+       The same filter explorer.html runs over the game's artwork,
+       moved onto the GPU so it can run on a live screen.
+
+       Its settings are the viewer's, and the viewer is the source of truth:
+       sensitivity 0.67, strength 67%, detail recovery 50%, the checkerboard
+       notch smoother. utilities/mobile_undither_check.mjs reads them back out
+       of the viewer and fails if the two drift apart.
+
+       The viewer's implementation could not be used as it stands. It is
+       written for one still picture with a 400-entry cache, and it costs 5.8
+       seconds for a 640x480 frame and 16 seconds at phone resolution -- five
+       orders of magnitude off a live emulator. What is here is the same
+       algorithm, stage for stage, as three full-screen passes:
+
+         1  mean    a 3x3 box mean of the frame
+         2  detect  how dithered each pixel is, and the blend
+         3  detail  re-sharpen what the blend softened
+
+       Two stages of the viewer's pipeline are deliberately not here. Stray
+       colour repair looks for isolated pixels whose HUE is wrong -- palette
+       quantisation accidents in the artwork, which an emulator's framebuffer
+       does not have. The 2x guided upscale-and-supersample buys tonal depth
+       by inventing sub-pixel samples, at four times the pixels, and the
+       viewer then pulls undithered pixels back off it again by (1-w); on a
+       screen that is already being scaled to fit, it is not worth a frame's
+       budget. `passes: 3` is not here either, because it does nothing: the
+       notch smoother reads `src`, which does not change between passes, so
+       the viewer computes the same result three times.
+
+       The old filter was a 3x3 box blur that fired only where all four
+       neighbours differed -- the same shape as the one the viewer deleted for
+       "pushing pixels off the palette". This one decides pixel by pixel
+       whether it is looking at a dither or at drawn linework, and leaves the
+       linework alone. */
+    const UNDITHER = {sens: 0.67, strength: 0.67, detail: 0.5};
+
+    const gl = glCanvas.getContext('webgl', {alpha: false, antialias: false, depth: false});
+
+    const VS = `attribute vec2 a_position; varying vec2 v_texCoord;
+        void main() { v_texCoord = a_position * 0.5 + 0.5; gl_Position = vec4(a_position, 0.0, 1.0); }`;
+
+    // A frame arrives top row first; the emulator's screen is drawn the same
+    // way, so only the pass that reaches the display flips it.
+    // CLAMP_TO_EDGE would repeat the edge pixel into the average; the viewer
+    // leaves an out-of-range neighbour out of the count instead. `inside()` is
+    // that rule, and it is what makes the two agree at the border as well as
+    // in the middle.
+    const GLSL_INSIDE = `bool inside(vec2 uv) { return uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0; }`;
+
+    const FS_MEAN = `precision highp float;
+        varying vec2 v_texCoord; uniform sampler2D u_src; uniform vec2 u_texSize;
+        ${GLSL_INSIDE}
+        void main() {
+            vec2 px = 1.0 / u_texSize;
+            vec3 sum = vec3(0.0); float cnt = 0.0;
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++) {
+                    vec2 uv = v_texCoord + vec2(float(dx), float(dy)) * px;
+                    if (!inside(uv)) continue;
+                    sum += texture2D(u_src, uv).rgb; cnt += 1.0;
+                }
+            gl_FragColor = vec4(sum / cnt, 1.0);
+        }`;
+
+    /* detect(), the lock pass and the notch, in one. The residual of a pixel
+       is what is left after its own neighbourhood's mean is taken away, and
+       the question the detector asks is whether the residuals along a line
+       through the pixel agree with it or alternate against it. A dither
+       alternates; a drawn edge agrees. That is the whole idea, and it is why
+       this can smooth a checkerboard without touching a one-pixel highlight. */
+    const FS_DETECT = `precision highp float;
+        varying vec2 v_texCoord;
+        uniform sampler2D u_src; uniform sampler2D u_mean;
+        uniform vec2 u_texSize; uniform float u_sens; uniform float u_strength;
+        ${GLSL_INSIDE}
+
+        vec3 srcAt(vec2 uv) { return texture2D(u_src, uv).rgb * 255.0; }
+        vec3 resAt(vec2 uv) { return (texture2D(u_src, uv).rgb - texture2D(u_mean, uv).rgb) * 255.0; }
+
+        void main() {
+            vec2 px = 1.0 / u_texSize;
+            vec3 c = srcAt(v_texCoord);
+            vec3 r0 = resAt(v_texCoord);
+            float m = length(r0);
+            float d = 0.0;
+
+            if (m >= 0.5) {
+                float best = -2.0;
+                for (int a = 0; a < 2; a++) {
+                    vec2 ax = a == 0 ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+                    float sum = 0.0, cnt = 0.0;
+                    for (int k = 1; k <= 3; k++) {
+                        for (int sg = 0; sg < 2; sg++) {
+                            vec2 uv = v_texCoord + ax * float(k) * (sg == 0 ? -1.0 : 1.0) * px;
+                            if (!inside(uv)) continue;
+                            cnt += 1.0;
+                            vec3 rj = resAt(uv);
+                            float mj = length(rj);
+                            if (mj < 0.5) continue;      // a flat neighbour votes neutral
+                            sum += dot(r0, rj) / (m * mj);
+                        }
+                    }
+                    if (cnt > 0.0) best = max(best, sum / cnt);
+                }
+                float coh = best < -1.0 ? 1.0 : best;    // no support at all: coherent
+                d = clamp((u_sens - coh) * 8.0, 0.0, 1.0) * smoothstep(1.5, 5.0, m);
+            }
+
+            // A pixel whose whole neighbourhood is one colour has nothing to
+            // undither, whatever the residuals said.
+            bool uniformArea = true;                 // "flat" is a reserved word
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++) {
+                    if (dx == 0 && dy == 0) continue;
+                    vec2 uv = v_texCoord + vec2(float(dx), float(dy)) * px;
+                    if (inside(uv) && srcAt(uv) != c) uniformArea = false;
+                }
+            if (uniformArea) d = 0.0;
+
+            // The checkerboard notch: half the pixel, half its four orthogonal
+            // neighbours. It removes one frequency and leaves the rest alone.
+            vec3 n4 = vec3(0.0); float n4cnt = 0.0;
+            for (int e = 0; e < 4; e++) {
+                vec2 off = e == 0 ? vec2(px.x, 0.0) : e == 1 ? vec2(-px.x, 0.0)
+                         : e == 2 ? vec2(0.0, px.y) : vec2(0.0, -px.y);
+                vec2 uv = v_texCoord + off;
+                if (!inside(uv)) continue;
+                n4 += srcAt(uv); n4cnt += 1.0;
+            }
+            vec3 filt = n4cnt > 0.0 ? 0.5 * c + 0.5 * (n4 / n4cnt) : c;
+
+            vec3 res = c + d * u_strength * (filt - c);
+            gl_FragColor = vec4(res / 255.0, d);   // d rides along for pass 3
+        }`;
+
+    const FS_DETAIL = `precision highp float;
+        varying vec2 v_texCoord; uniform sampler2D u_res;
+        uniform vec2 u_texSize; uniform float u_strength; uniform float u_detail;
+        ${GLSL_INSIDE}
+        void main() {
+            vec2 uv = vec2(v_texCoord.x, 1.0 - v_texCoord.y);   // to the display
+            vec2 px = 1.0 / u_texSize;
+            vec4 self = texture2D(u_res, uv);
+            vec3 sum = vec3(0.0); float cnt = 0.0;
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++) {
+                    vec2 t = uv + vec2(float(dx), float(dy)) * px;
+                    if (!inside(t)) continue;
+                    sum += texture2D(u_res, t).rgb; cnt += 1.0;
+                }
+            vec3 blurred = sum / cnt;
+            float w = self.a * u_strength * u_detail;
+            gl_FragColor = vec4(self.rgb + w * (self.rgb - blurred), 1.0);
+        }`;
+
+    /* All of this used to run unguarded at the top level, so on a browser
+       without WebGL -- or with it blocked, or with too many live contexts --
+       getContext returned null and the script died before it had installed a
+       single input handler. The page came up as a dead emulator with no
+       controls at all. A display filter must not be able to do that. */
+    let texSrc = null, texMean = null, texRes = null, fboMean = null, fboRes = null;
+    let progMean = null, progDetect = null, progDetail = null, fboType = null;
+
+    const shaderReady = (() => {
+        if (!gl) return false;
+        try {
+            const compile = (type, source) => {
+                const shader = gl.createShader(type);
+                gl.shaderSource(shader, source);
+                gl.compileShader(shader);
+                if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
+                    throw new Error(gl.getShaderInfoLog(shader) || 'shader compile failed');
+                return shader;
+            };
+            const link = fs => {
+                const prog = gl.createProgram();
+                gl.attachShader(prog, compile(gl.VERTEX_SHADER, VS));
+                gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fs));
+                gl.bindAttribLocation(prog, 0, 'a_position');
+                gl.linkProgram(prog);
+                if (!gl.getProgramParameter(prog, gl.LINK_STATUS))
+                    throw new Error(gl.getProgramInfoLog(prog) || 'program link failed');
+                return prog;
+            };
+            progMean = link(FS_MEAN);
+            progDetect = link(FS_DETECT);
+            progDetail = link(FS_DETAIL);
+
+            const buffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(0);
+            gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+            // The detector works on residuals -- a pixel minus its own
+            // neighbourhood's mean -- which are small numbers. Eight bits per
+            // channel quantises the mean, and the error lands squarely on the
+            // faint end of the detector's ramp, so half floats are worth
+            // asking for. Every desktop and nearly every phone GPU has them;
+            // where they are missing the filter still runs, a little coarser.
+            gl.getExtension('OES_texture_half_float_linear');
+            const halfFloat = gl.getExtension('OES_texture_half_float');
+            fboType = halfFloat ? halfFloat.HALF_FLOAT_OES : gl.UNSIGNED_BYTE;
+
+            texSrc = makeTexture();
+            texMean = makeTexture();
+            texRes = makeTexture();
+            fboMean = gl.createFramebuffer();
+            fboRes = gl.createFramebuffer();
+            allocateTargets(screenWidth, screenHeight);
+            if (fboType !== gl.UNSIGNED_BYTE &&
+                gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+                // Some drivers advertise half floats but will not render to
+                // them. Asking is the only way to find out.
+                fboType = gl.UNSIGNED_BYTE;
+                gl.deleteTexture(texMean); gl.deleteTexture(texRes);
+                texMean = makeTexture();
+                texRes = makeTexture();
+                allocateTargets(screenWidth, screenHeight);
+            }
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            return true;
+        } catch (err) {
+            console.warn('Undither unavailable:', err && err.message);
+            return false;
+        }
+    })();
+
+    function makeTexture() {
+        const tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        return tex;
+    }
+
+    // The intermediate buffers are the size of the emulated screen, so they
+    // have to follow it when the machine changes resolution.
+    function allocateTargets(w, h) {
+        for (const [tex, fbo] of [[texMean, fboMean], [texRes, fboRes]]) {
+            gl.bindTexture(gl.TEXTURE_2D, tex);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, fboType, null);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+        }
+    }
+
+    function setSize(w, h) {
+        if (!shaderReady) return;
+        allocateTargets(w, h);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        for (const [prog, uniforms] of [[progMean, {}], [progDetect, {u_sens: UNDITHER.sens, u_strength: UNDITHER.strength}],
+                                        [progDetail, {u_strength: UNDITHER.strength, u_detail: UNDITHER.detail}]]) {
+            gl.useProgram(prog);
+            gl.uniform2f(gl.getUniformLocation(prog, 'u_texSize'), w, h);
+            for (const name in uniforms) gl.uniform1f(gl.getUniformLocation(prog, name), uniforms[name]);
+        }
+    }
+    if (shaderReady) setSize(screenWidth, screenHeight);
+
+    let isCrisp = true;
+    const filterToggle = document.getElementById('filter-toggle');
+    function setCrisp(crisp) {
+        isCrisp = crisp || !shaderReady;
+        if (isCrisp) { glCanvas.style.display = 'none'; iframe.style.opacity = '1'; filterToggle.innerHTML = '<span class="emoji">📺</span>Crisp'; }
+        else { glCanvas.style.display = 'block'; iframe.style.opacity = '0.01'; filterToggle.innerHTML = '<span class="emoji">📺</span>Undith'; }
+        savePrefs({ crisp: isCrisp });
+    }
+    onTap(filterToggle, () => {
+        if (!shaderReady) { showToast('No WebGL here'); return; }
+        setCrisp(!isCrisp);
+    });
+    if (!shaderReady) {
+        filterToggle.classList.add('disabled');
+        filterToggle.title = 'WebGL is not available in this browser';
+    }
+
+    // Called from the one message listener at the top, which is also where
+    // the emulator's real screen size is picked up. Two listeners for the same
+    // message meant two places that had to agree about what a frame is.
+    function drawScreen(msg) {
+        if (isCrisp || !shaderReady || !msg.data) return;
+        const w = msg.width || screenWidth, h = msg.height || screenHeight;
+        try {
+            gl.bindTexture(gl.TEXTURE_2D, texSrc);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(msg.data));
+            gl.viewport(0, 0, w, h);
+
+            pass(progMean, fboMean, [['u_src', texSrc]]);
+            pass(progDetect, fboRes, [['u_src', texSrc], ['u_mean', texMean]]);
+            pass(progDetail, null, [['u_res', texRes]]);
+        } catch (err) { /* a frame that will not upload is not worth reporting */ }
+    }
+
+    function pass(prog, fbo, inputs) {
+        gl.useProgram(prog);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        for (let unit = 0; unit < inputs.length; unit++) {
+            gl.activeTexture(gl.TEXTURE0 + unit);
+            gl.bindTexture(gl.TEXTURE_2D, inputs[unit][1]);
+            gl.uniform1i(gl.getUniformLocation(prog, inputs[unit][0]), unit);
+        }
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+
+    // Settings Drawer Buttons
+    /* The settings panel used to be bolted to the bottom of the screen, where
+       it sat on top of whatever was there -- and on a phone in landscape that
+       is most of the game. It moves now, like the other floating windows, and
+       collapsing it hides its buttons where it stands rather than sliding it
+       off the bottom edge, which would be meaningless once it has been moved.
+
+       Its handle is both the grab bar and the collapse button: a press that
+       goes nowhere toggles, a press that travels moves it. */
+    const settingsDrawer = document.getElementById('settings-drawer');
+    const settingsHandle = document.getElementById('settings-handle');
+    function toggleSettings() {
+        settingsDrawer.classList.toggle('collapsed');
+        saveHudLayout();
+    }
+    makeDraggable(settingsDrawer, settingsHandle, {onTap: toggleSettings, onEnd: saveHudLayout});
+    settingsHandle.tabIndex = 0;
+    settingsHandle.setAttribute('role', 'button');
+    settingsHandle.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSettings(); }
+    });
+ 
+    let touchMode = 0;
+    const touchModeToggle = document.getElementById('touch-mode-toggle');
+    const touchModeLabels = ['<span class="emoji">👆</span>Direct', '<span class="emoji">🖱️</span>Trackpad', '<span class="emoji">🎯</span>Pan View'];
+    function setTouchMode(mode) {
+        touchMode = ((mode % 3) + 3) % 3;
+        touchModeToggle.innerHTML = touchModeLabels[touchMode];
+        centerCrosshair.style.display = (touchMode === 2) ? 'block' : 'none';
+        touchOverlay.classList.toggle('pan-cursor', touchMode === 2);
+        // Changing what a drag means in the middle of one would otherwise
+        // leave the button down in the emulated Mac.
+        releaseAllButtons();
+        if (touchMode === 2) updatePanCursor();
+        savePrefs({ touchMode: touchMode });
+    }
+    onTap(touchModeToggle, () => setTouchMode(touchMode + 1));
+
+    let isPaused = false;
+    const pauseBtn = document.getElementById('pause-btn');
+    onTap(pauseBtn, () => {
+        isPaused = !isPaused;
+        // A paused emulator cannot receive a keyup or a mouseup, so let go of
+        // everything before it stops listening.
+        if (isPaused) releaseEverything();
+        post({ type: isPaused ? 'emulator_pause' : 'emulator_unpause' });
+        pauseBtn.innerHTML = isPaused ? '<span class="emoji">▶️</span>Play' : '<span class="emoji">⏸️</span>Pause';
+    });
+
+    // A native confirm() is a system-modal dialog: on iOS it takes focus away
+    // mid-gesture and leaves the touch handlers here with a pointer they never
+    // see released. This one is part of the page.
+    const modalEl = document.getElementById('modal-confirm');
+    const modalInput = document.getElementById('modal-input');
+    let modalOnOk = null;
+    // Wired once. Adding and removing a pair of listeners per call meant the
+    // buttons behaved differently depending on how the dialog was opened, and
+    // could not be reached from a keyboard at all.
+    function closeModal() { modalEl.hidden = true; modalOnOk = null; }
+    function confirmModal() {
+        const value = modalInput.hidden ? undefined : modalInput.value;
+        const fn = modalOnOk;
+        closeModal();
+        if (fn) fn(value);
+    }
+    onTap(document.getElementById('modal-ok'), confirmModal);
+    onTap(document.getElementById('modal-cancel'), closeModal);
+    modalInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); confirmModal(); }
+    });
+
+    function askModal(text, onOk, initialValue) {
+        document.getElementById('modal-text').textContent = text;
+        modalInput.hidden = initialValue === undefined;
+        if (!modalInput.hidden) modalInput.value = initialValue;
+        modalOnOk = onOk;
+        modalEl.hidden = false;
+        if (!modalInput.hidden) modalInput.focus();
+    }
+    const askConfirm = (text, onYes) => askModal(text, onYes);
+
+    function reloadEmulator(speed) {
+        releaseAllKeys();
+        emulatorReady = false;
+        pendingMessages = [];
+        lastSentX = lastSentY = null;
+        iframe.src = buildEmbedUrl(speed);
+        setStartStatus('Restarting the emulated Mac…', false);
+        startOverlay.style.display = 'flex';
+        touchOverlay.classList.remove('active');
+        hudLayer.classList.remove('active');
+    }
+
+    const speedBtn = document.getElementById('speed-btn');
+    function paintSpeed() { speedBtn.innerHTML = `<span class="emoji">⚡</span>${speedName(currentSpeed)}`; }
+    onTap(speedBtn, () => {
+        const i = SPEEDS.findIndex(([v]) => v === currentSpeed);
+        const [next, label] = SPEEDS[(i + 1) % SPEEDS.length];
+        askConfirm(`Run the emulator at ${label}?\n\nThis restarts the Mac, and anything not saved inside Cythera is lost.`, () => {
+            currentSpeed = next;
+            paintSpeed();
+            savePrefs({ speed: currentSpeed });
+            reloadEmulator(currentSpeed);
+        });
+    });
+
+    // Fullscreen replaces a button that used to claim to control the volume.
+    // There is no way for this page to do that: audio belongs to the emulator
+    // in a cross-origin iframe, and the embed API has no message for it.
+    const fullscreenBtn = document.getElementById('fullscreen-btn');
+    onTap(fullscreenBtn, () => {
+        const el = document.documentElement;
+        if (document.fullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen || function(){}).call(document);
+        else (el.requestFullscreen || el.webkitRequestFullscreen || function(){}).call(el);
+    });
+    if (!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) {
+        fullscreenBtn.classList.add('disabled');   // iOS Safari on iPhone
+        fullscreenBtn.title = 'Fullscreen is not available in this browser';
+    }
+
+    // emulator_load_disk takes a URL, and infinitemac.org's own worker is what
+    // fetches it (a HEAD for the size, then ranged reads), not this browser.
+    // So a blob: URL made from a local file cannot work, and neither can a
+    // private address -- which is exactly why the local Cythera files are
+    // loaded by dropping them on the emulator instead (see the drop handler).
+    onTap(document.getElementById('disk-btn'), () => {
+        askModal('Disk image URL to mount.\n\nIt has to be reachable from the public internet: infinitemac.org fetches it, not this browser.',
+            url => {
+                if (!url) return;
+                config.cdrom = url;
+                post({ type: 'emulator_load_disk', url: url });
+                showToast('Loading disk…');
+            }, config.cdrom);
+    });
+
+    const controlsBtn = document.getElementById('controls-btn');
+    function setControlsHidden(hidden) {
+        hudLayer.classList.toggle('controls-hidden', hidden);
+        controlsBtn.innerHTML = hidden ? '<span class="emoji">🎮</span>Pads off'
+                                       : '<span class="emoji">🎮</span>Pads';
+        // Whatever a hidden pad was holding down, it is not holding it now.
+        if (hidden) { stopMovement(); releaseAllKeys(); }
+    }
+    onTap(controlsBtn, () => {
+        setControlsHidden(!hudLayer.classList.contains('controls-hidden'));
+        saveHudLayout();
+    });
+
+    // Windows can be dragged somewhere unhelpful, and a layout saved on a
+    // phone makes no sense on a desktop. This is the way back.
+    onTap(document.getElementById('reset-layout-btn'), () => {
+        askConfirm('Put the floating windows and the settings panel back where they started?', () => {
+            savePrefs({hud: null});
+            for (const win of hudWindows) {
+                win.style.left = win.style.top = win.style.right = win.style.bottom = '';
+                win.style.width = win.style.height = '';
+                setWindowMode(win, false);
+            }
+            settingsDrawer.style.left = settingsDrawer.style.top = '';
+            settingsDrawer.style.transform = '';
+            settingsDrawer.classList.add('collapsed');
+            setControlsHidden(false);
+            showToast('Layout reset');
+        });
+    });
+
+    const helpPanel = document.getElementById('help-panel');
+    onTap(document.getElementById('help-btn'), () => { helpPanel.hidden = false; });
+    onTap(document.getElementById('help-close'), () => { helpPanel.hidden = true; });
+    helpPanel.addEventListener('pointerdown', e => { if (e.target === helpPanel) helpPanel.hidden = true; });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { helpPanel.hidden = true; closeModal(); }
+    });
+
+    // Keys & Buttons
+    const actionBtns = document.querySelectorAll('.action-btn'), dirBtns = document.querySelectorAll('.dir-btn');
+    actionBtns.forEach(btn => btn.addEventListener('pointerdown', () => { actionBtns.forEach(b => b.classList.remove('active-action')); btn.classList.add('active-action'); }));
+    dirBtns.forEach(btn => btn.addEventListener('pointerdown', () => actionBtns.forEach(b => b.classList.remove('active-action'))));
+    document.querySelectorAll('.btn[data-code]').forEach(btn => {
+        const code = btn.getAttribute('data-code');
+        btn.addEventListener('pointerdown', e => { e.preventDefault(); pressKey(code); });
+        btn.addEventListener('pointerup', e => { e.preventDefault(); releaseKey(code); });
+        btn.addEventListener('pointerleave', e => { e.preventDefault(); releaseKey(code); });
+        // pointercancel fires whenever the browser takes the gesture over --
+        // a scroll starting, a system edge swipe, a call arriving. Without it
+        // the key was never released and the character walked off on its own.
+        btn.addEventListener('pointercancel', () => releaseKey(code));
+        btn.tabIndex = 0;
+        btn.setAttribute('role', 'button');
+        btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pressKey(code); } });
+        btn.addEventListener('keyup', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); releaseKey(code); } });
+    });
+    const kbInput = document.getElementById('hidden-keyboard');
+    const kbToggle = document.getElementById('kb-toggle');
+    // This one listens for `click` rather than going through onTap: a phone
+    // only raises its keyboard for a focus() that happens inside a real user
+    // gesture, and preventDefault()ing pointerdown stops it from being one.
+    // It listened for `touchend` alone before, so on a desktop it did nothing.
+    kbToggle.addEventListener('click', () => kbInput.focus());
+    kbToggle.tabIndex = 0;
+    kbToggle.setAttribute('role', 'button');
+    kbToggle.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); kbInput.focus(); }
+    });
+    const charToCode = { 'a':'KeyA', 'b':'KeyB', 'c':'KeyC', 'd':'KeyD', 'e':'KeyE', 'f':'KeyF', 'g':'KeyG', 'h':'KeyH', 'i':'KeyI', 'j':'KeyJ', 'k':'KeyK', 'l':'KeyL', 'm':'KeyM', 'n':'KeyN', 'o':'KeyO', 'p':'KeyP', 'q':'KeyQ', 'r':'KeyR', 's':'KeyS', 't':'KeyT', 'u':'KeyU', 'v':'KeyV', 'w':'KeyW', 'x':'KeyX', 'y':'KeyY', 'z':'KeyZ', '1':'Digit1', '2':'Digit2', '3':'Digit3', '4':'Digit4', '5':'Digit5', '6':'Digit6', '7':'Digit7', '8':'Digit8', '9':'Digit9', '0':'Digit0', ' ':'Space', 'backspace':'Backspace', 'enter':'Enter' };
+    kbInput.addEventListener('keydown', (e) => { let code = e.code || charToCode[e.key.toLowerCase()]; if(code && code!=='Unidentified') pressKey(code); });
+    kbInput.addEventListener('keyup', (e) => { let code = e.code || charToCode[e.key.toLowerCase()]; if(code && code!=='Unidentified') releaseKey(code); });
+    kbInput.addEventListener('blur', () => kbInput.value = '');
+
+    /* ---- Installing a mod without touching the screen --------------------
+       The viewer next door exports a `.dsk` holding an edited Cythera Data.
+       Getting it into the game means replacing the copy in the game's folder,
+       and doing that in the Finder means a drag -- from one window to another,
+       both of which are wherever the user last left them, on a screen whose
+       size is whatever the phone is. There is nothing to aim at from here.
+
+       So nothing is aimed at. Every step below is a keystroke:
+
+         Command-W, several times   close the Finder's windows, which leaves
+                                    the desktop holding the keyboard
+         type the volume's name     the Finder's type-select picks the icon
+         Command-O                  opens it
+         type the script's name     picks "Install and Play" inside
+         Command-O                  a TEXT file whose creator is ToyS opens
+                                    in Script Editor
+         Command-R                  runs it
+
+       and the AppleScript on the disk does the rest -- it finds the folder
+       holding the Cythera application on any mounted disk, replaces the data
+       file, and launches the game. explorer.html's buildInstallScript has the
+       script and what compiling it against a real Mac OS 7.6 taught.
+
+       Nothing here depends on a resolution, a window position or a scroll
+       offset, and the failure mode is benign: with no such disk mounted, the
+       type-select selects nothing and every Command-O does nothing.
+
+       DISK_NAME and SCRIPT_NAME are the same strings explorer.html writes on
+       the disk. `mobile_install_check.mjs` reads both pages and fails if they
+       stop agreeing -- two halves of one contract in two files is exactly the
+       arrangement the undither check exists for. */
+    const INSTALL_DISK_NAME = 'Cythera Export';
+    const INSTALL_SCRIPT_NAME = 'Install and Play';
+    // Type-select needs enough to be unambiguous, not the whole name; a
+    // shorter prefix is also less to go wrong.
+    const INSTALL_DISK_PREFIX = 'cythera exp';
+    const INSTALL_SCRIPT_PREFIX = 'install';
+    // Long enough for a slow machine to keep up, short enough to watch.
+    const INSTALL_KEY_MS = 60;
+    const INSTALL_STEPS = [
+        /* Return, then Escape, before anything else. Mounting a disk whose
+           catalog needs more than one leaf node makes the Finder put up
+
+               An error occured while rebuilding the desktop file on the disk
+               "..."; comments from info windows were not preserved.
+
+           and that alert is MODAL -- it holds the keyboard, so every keystroke
+           below would go into a dialog that ignores it and the install would
+           silently do nothing. Return presses its OK.
+
+           Escape is the safety net for the case where there was no alert: on
+           a Finder window with an item selected, Return starts renaming it,
+           and the disk's name would then be typed into the rename box.
+           Escape cancels a rename in progress and does nothing at all
+           otherwise, so the pair is safe either way round. */
+        ['note', 'Clearing anything in the way…'],
+        ['key',  'Enter'],
+        ['key',  'Escape'],
+        ['wait', 800],
+        ['note', 'Closing the Finder’s windows…'],
+        ['cmd',  'KeyW', 6],
+        ['wait', 1500],
+        ['note', 'Finding the export disk…'],
+        ['type', INSTALL_DISK_PREFIX],
+        ['wait', 900],
+        ['cmd',  'KeyO'],
+        ['wait', 4000],
+        ['note', 'Opening the installer…'],
+        ['type', INSTALL_SCRIPT_PREFIX],
+        ['wait', 900],
+        ['cmd',  'KeyO'],
+        ['wait', 20000],
+        ['note', 'Running it — the game starts by itself.'],
+        ['cmd',  'KeyR'],
+    ];
+
+    let installRunning = false;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+    async function tapKey(code) {
+        pressKey(code);
+        await sleep(INSTALL_KEY_MS);
+        releaseKey(code);
+        await sleep(INSTALL_KEY_MS);
+    }
+    async function tapCommand(code) {
+        pressKey('MetaLeft');
+        await sleep(INSTALL_KEY_MS);
+        pressKey(code);
+        await sleep(INSTALL_KEY_MS);
+        releaseKey(code);
+        await sleep(INSTALL_KEY_MS);
+        releaseKey('MetaLeft');
+        await sleep(INSTALL_KEY_MS);
+    }
+    /* Everything a US keyboard reaches with Shift. The install sequence only
+       ever typed file names, so lower-case letters and digits were the whole
+       alphabet; typing an AppleScript needs quotes, colons, parentheses and
+       capitals, and there is no other way to get one into the emulated Mac. */
+    const shiftedChar = {
+        '"': 'Quote', ':': 'Semicolon', '(': 'Digit9', ')': 'Digit0', '&': 'Digit7',
+        '_': 'Minus', '+': 'Equal', '>': 'Period', '<': 'Comma', '?': 'Slash',
+        '!': 'Digit1', '@': 'Digit2', '#': 'Digit3', '$': 'Digit4', '%': 'Digit5',
+        '^': 'Digit6', '*': 'Digit8', '{': 'BracketLeft', '}': 'BracketRight',
+        '|': 'Backslash', '~': 'Backquote',
+    };
+    const plainChar = {
+        "'": 'Quote', ';': 'Semicolon', ',': 'Comma', '.': 'Period', '-': 'Minus',
+        '=': 'Equal', '/': 'Slash', '[': 'BracketLeft', ']': 'BracketRight',
+        '\\': 'Backslash', '`': 'Backquote', '\n': 'Enter', '\r': 'Enter', '\t': 'Tab',
+    };
+    async function tapShifted(code) {
+        pressKey('ShiftLeft');
+        await sleep(INSTALL_KEY_MS);
+        await tapKey(code);
+        releaseKey('ShiftLeft');
+        await sleep(INSTALL_KEY_MS);
+    }
+    /* Typing long text needs pacing, and the reason is in infinite-mac's own
+       source. `updateInputBufferWithEvents` carries ONE key event per sync --
+       "currently only one key event can be sent per sync", its comment says --
+       and it writes the code into a single slot with the flag set,
+       unconditionally. Nothing is dropped on this side (the leftovers stay
+       queued and retry), but if the guest has not polled since the last key,
+       the next one overwrites it and that keystroke is gone.
+
+       A file name is short enough that it never showed. A three-thousand
+       character AppleScript showed it immediately: "permission" arrived as
+       "pssion" and the compile failed on nonsense. So the typist pauses --
+       every TYPE_BREATH characters, and again at every newline, which is where
+       an editor does the most work. It costs about a quarter of the time and
+       buys a script that is actually what was sent. */
+    const TYPE_BREATH = 40, TYPE_BREATH_MS = 260, TYPE_LINE_MS = 160;
+    async function typeAtTheMac(text) {
+        let since = 0;
+        for (const ch of text) {
+            if (shiftedChar[ch]) await tapShifted(shiftedChar[ch]);
+            else if (plainChar[ch]) await tapKey(plainChar[ch]);
+            else if (ch >= 'A' && ch <= 'Z') await tapShifted('Key' + ch);
+            else {
+                const code = charToCode[ch.toLowerCase()];
+                if (code) await tapKey(code);
+            }
+            if (ch === '\n' || ch === '\r') { await sleep(TYPE_LINE_MS); since = 0; continue; }
+            if (++since >= TYPE_BREATH) { await sleep(TYPE_BREATH_MS); since = 0; }
+        }
+    }
+
+    /* ---- Patching the game's own file, with nothing but keystrokes --------
+       The disk route needs a file to reach the emulator, and on a phone there
+       is no way to put one there that does not go through someone else's file
+       picker. This route carries no file at all: explorer.html works out which
+       BYTES of Cythera Data an edit changes -- the cipher is a
+       position-indexed keystream XOR, so a reworded line is a handful of them,
+       and one word was measured at a single byte -- and this types an
+       AppleScript that writes them.
+
+       Four things about it were settled by running a reconnaissance script in
+       a real Mac OS 7.6 rather than guessed:
+
+         - Script Editor is at Macintosh HD:Apple Extras:AppleScript(tm), and
+           the folder's name really does end in a trademark sign, so it is
+           reached by typing a prefix rather than by naming it.
+         - `write ... starting at N` is ONE-BASED. A patch offset is a normal
+           0-based file offset, so it goes out as offset + 1. Off by one here
+           corrupts a byte silently.
+         - open for access / write / read / close access / set eof all work.
+         - `display dialog` refuses a string of 256 characters or more, which
+           is why what it reports is short.
+
+       The script checks the old byte before writing it. A patch is only valid
+       against the exact file it was diffed from; reading one byte proves that,
+       and without the check a patch aimed at 1.0.4 would quietly corrupt some
+       other build. */
+    /* Bytes travel as HEX, decoded by the script, because the keyboard is the
+       whole cost of this route.
+
+       Spelling each byte as `(ASCII character 74)` costs 46 typed characters
+       per patched byte once the check and the write are counted -- measured,
+       and it puts one portrait at two hours. A hex pair costs two, and the
+       decoder is a fixed ~400 characters however long the patch is. The same
+       portrait becomes about five minutes.
+
+       The decoder accumulates into a LIST and coerces once at the end.
+       AppleScript strings are immutable, so `d to d & c` in a loop copies the
+       whole string every time -- quadratic, and on a 68K that is the
+       difference between seconds and minutes. `set end of L to c` is constant
+       time and `L as string` with empty delimiters is one pass.
+
+       `ASCII number` rather than `offset of c in "0123456789abcdef"`: both are
+       Standard Additions, but the arithmetic one cannot be confused by a
+       locale or a missing addition, and it is shorter to type. */
+    const PATCH_HEX_PRELUDE = [
+        'on nyb(n)',
+        'if n > 96 then return n - 87',
+        'return n - 48',
+        'end nyb',
+        'on unhex(h)',
+        'set L to {}',
+        'repeat with i from 1 to (count of h) by 2',
+        'set a to my nyb(ASCII number (character i of h))',
+        'set b to my nyb(ASCII number (character (i + 1) of h))',
+        'set end of L to (ASCII character (a * 16 + b))',
+        'end repeat',
+        'set AppleScript\'s text item delimiters to ""',
+        'set d to L as string',
+        'return d',
+        'end unhex',
+    ];
+
+    /* How much script one pass may carry. Script Editor's script field is a
+       classic TextEdit record, and those cap at 32,767 bytes; 7,000 keeps well
+       clear of that, and a shorter document is also less work for the guest
+       between keystrokes, which is what the pacing above is about. It keeps
+       each pass to a few minutes of typing,
+       which is a reasonable unit of "did that work?". A patch longer than one
+       pass is split, and between passes the sequence is Command-A then the
+       next script -- select all, and typing replaces it. */
+    const PATCH_MAX_SCRIPT = 2500;
+
+    const hexOf = a => a.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    // The lines that find the game's folder. Every pass needs them, because
+    // each pass is a whole script in its own right.
+    const PATCH_FIND_GAME = [
+        'set d to ""',
+        'tell application "Finder"',
+        'repeat with k in disks',
+        'repeat with f in (every folder of k)',
+        'if d is "" then',
+        'try',
+        'get file "Cythera" of f',
+        'set d to (f as string)',
+        'set g to f',
+        // `on error` is not optional in this AppleScript. Without it the
+        // compile fails with `Expected "on" but found "end"` -- after
+        // everything else has already worked, so it reads as the patch being
+        // wrong rather than the script. Same trap the installer hit.
+        'on error',
+        'end try',
+        'end if',
+        'end repeat',
+        'end repeat',
+        'end tell',
+        'if d is "" then',
+        'display dialog "No Cythera folder found" buttons {"OK"}',
+        'else',
+        'set p to d & "Cythera Data"',
+        'set ok to true',
+    ];
+
+    function patchPassLines(runs, isLast) {
+        const lines = PATCH_HEX_PRELUDE.concat(PATCH_FIND_GAME);
+        // Read every old byte back before touching anything in this pass, so a
+        // patch aimed at another build stops before it has written.
+        for (const r of runs) {
+            lines.push('set fd to open for access file p');
+            lines.push('set was to (read fd from ' + (r.offset + 1) + ' for ' + r.old.length + ')');
+            lines.push('close access fd');
+            lines.push('if was is not my unhex("' + hexOf(r.old) + '") then set ok to false');
+        }
+        lines.push('if ok is false then');
+        lines.push('display dialog "This patch is for a different Cythera Data" buttons {"OK"}');
+        lines.push('else');
+        for (const r of runs) {
+            lines.push('set fd to open for access file p with write permission');
+            lines.push('write my unhex("' + hexOf(r.now) + '") to fd starting at ' + (r.offset + 1));
+            lines.push('close access fd');
+        }
+        // Only the last pass says anything, so the passes before it leave the
+        // keyboard in the script field rather than in a dialog.
+        if (isLast) lines.push('tell application "Finder" to open file "Cythera" of g');
+        lines.push('end if');
+        lines.push('end if');
+        return lines.join('\n');
+    }
+
+    /* One script per pass. A run is never split across passes -- the read, the
+       check and the write for a run have to be in the same script, or a pass
+       could write bytes another pass was still checking. A single run too big
+       for a pass is carried anyway rather than dropped; it is the only case
+       where a pass may exceed the cap. */
+    function buildPatchScripts(runs) {
+        const passes = [];
+        let batch = [];
+        for (const r of runs) {
+            const trial = batch.concat([r]);
+            if (batch.length && patchPassLines(trial, false).length > PATCH_MAX_SCRIPT) {
+                passes.push(batch);
+                batch = [r];
+            } else {
+                batch = trial;
+            }
+        }
+        if (batch.length) passes.push(batch);
+        return passes.map((b, i) => patchPassLines(b, i === passes.length - 1));
+    }
+
+    // Getting to Script Editor with no file to open: the Finder's type-select,
+    // one window at a time. Every name here is a PREFIX -- "applescript"
+    // reaches a folder whose name ends in a trademark sign.
+    const PATCH_STEPS = [
+        ['note', 'Clearing anything in the way\u2026'],
+        ['key',  'Enter'],
+        ['key',  'Escape'],
+        ['wait', 800],
+        ['note', 'Closing the Finder\u2019s windows\u2026'],
+        ['cmd',  'KeyW', 6],
+        ['wait', 1500],
+        ['note', 'Opening the startup disk\u2026'],
+        ['type', 'macintosh hd'],
+        ['wait', 900],
+        ['cmd',  'KeyO'],
+        ['wait', 5000],
+        ['type', 'apple e'],
+        ['wait', 900],
+        ['cmd',  'KeyO'],
+        ['wait', 5000],
+        ['type', 'applescript'],
+        ['wait', 900],
+        ['cmd',  'KeyO'],
+        ['wait', 5000],
+        ['note', 'Opening Script Editor\u2026'],
+        ['type', 'script e'],
+        ['wait', 900],
+        ['cmd',  'KeyO'],
+        ['wait', 20000],
+    ];
+
+    /* The zip route's installer, typed rather than opened.
+
+       explorer.html can also export the edited archive as a .zip that
+       infinite-mac unpacks itself -- both forks, and less than half the size of
+       the disk image. What it cannot do is put it somewhere the Finder reaches
+       in one step: the contents land in The Outside World, under Downloads, in
+       a folder named after the zip. So rather than navigate there by
+       type-select and hope, the script searches for it, which is the same
+       shape as the patcher and costs about two minutes of typing.
+
+       ZIP_FOLDER_NAME is a contract with explorer.html, which names the zip so
+       that this is the folder it becomes. */
+    const ZIP_FOLDER_NAME = 'Cythera Patch';
+    const ZIP_ARCHIVE_NAME = 'Cythera Data';
+    function buildZipInstallScript() {
+        return [
+            'set src to ""',
+            'set dst to ""',
+            'tell application "Finder"',
+            'repeat with k in disks',
+            'if src is "" then',
+            'try',
+            'set src to file "' + ZIP_ARCHIVE_NAME + '" of folder "' + ZIP_FOLDER_NAME +
+                '" of folder "Downloads" of k',
+            // `on error` is not optional here, exactly as in the other two
+            // scripts: without it the compile fails with `Expected "on" but
+            // found "end"` after every other step has worked.
+            'on error',
+            'end try',
+            'end if',
+            'repeat with f in (every folder of k)',
+            'if dst is "" then',
+            'try',
+            'get file "Cythera" of f',
+            'set dst to f',
+            'on error',
+            'end try',
+            'end if',
+            'end repeat',
+            'end repeat',
+            'if src is "" then',
+            'display dialog "No ' + ZIP_FOLDER_NAME + ' folder in Downloads" buttons {"OK"}',
+            'else if dst is "" then',
+            'display dialog "No Cythera folder found" buttons {"OK"}',
+            'else',
+            // `with replacing` is what makes the copy silent; without it the
+            // Finder asks, and there is nobody there to answer.
+            'duplicate src to dst with replacing',
+            'open file "Cythera" of dst',
+            'end if',
+            'end tell',
+        ].join('\n');
+    }
+
+    let patchRuns = null;
+    async function typeAndRun(scripts) {
+        for (const [what, arg, times] of PATCH_STEPS) {
+            if (!installRunning) return;
+            if (what === 'note') showToast(arg);
+            else if (what === 'wait') await sleep(arg);
+            else if (what === 'type') await typeAtTheMac(arg);
+            else if (what === 'key') await tapKey(arg);
+            else if (what === 'cmd') for (let i = 0; i < (times || 1); i++) await tapCommand(arg);
+        }
+        for (let i = 0; i < scripts.length; i++) {
+            if (!installRunning) break;
+            showToast(scripts.length > 1
+                ? 'Typing part ' + (i + 1) + ' of ' + scripts.length + '\u2026'
+                : 'Typing it\u2026');
+            // Command-A first: typing then replaces the previous pass rather
+            // than appending to it.
+            if (i > 0) { await tapCommand('KeyA'); await sleep(600); }
+            await typeAtTheMac(scripts[i]);
+            await sleep(1500);
+            showToast(scripts.length > 1 ? 'Running part ' + (i + 1) : 'Running it');
+            await tapCommand('KeyR');
+            await sleep(i === scripts.length - 1 ? 2000 : 12000);
+        }
+    }
+
+    async function runZipInstall() {
+        if (installRunning) { installRunning = false; return; }
+        installRunning = true;
+        try { await typeAndRun([buildZipInstallScript()]); }
+        finally { releaseAllKeys(); installRunning = false; }
+    }
+
+    async function runPatch() {
+        if (!patchRuns) return;
+        if (installRunning) { installRunning = false; return; }
+        installRunning = true;
+        try { await typeAndRun(buildPatchScripts(patchRuns)); }
+        finally { releaseAllKeys(); installRunning = false; }
+    }
+
+    /* offset:old:new in hex, comma separated -- written by explorer.html's
+       encodeResourcePatch, and utilities/mobile_patch_check.mjs fails if the
+       two sides stop agreeing about the shape. */
+    function decodePatch(text) {
+        const runs = [];
+        for (const part of String(text).split(',')) {
+            const m = /^([0-9a-f]+):([0-9a-f]*):([0-9a-f]+)$/i.exec(part.trim());
+            if (!m) return null;
+            const bytes = h => h.match(/../g) ? h.match(/../g).map(x => parseInt(x, 16)) : [];
+            const old = bytes(m[2]), now = bytes(m[3]);
+            if (!now.length || old.length !== now.length) return null;
+            runs.push({ offset: parseInt(m[1], 16), old: old, now: now });
+        }
+        return runs.length ? runs : null;
+    }
+
+    async function runInstall() {
+        if (installRunning) { installRunning = false; return; }
+        installRunning = true;
+        installBtn.classList.add('active');
+        try {
+            for (const [what, arg, times] of INSTALL_STEPS) {
+                if (!installRunning) break;
+                if (what === 'note') showToast(arg);
+                else if (what === 'wait') await sleep(arg);
+                else if (what === 'type') await typeAtTheMac(arg);
+                else if (what === 'key') await tapKey(arg);
+                else if (what === 'cmd') for (let i = 0; i < (times || 1); i++) await tapCommand(arg);
+            }
+        } finally {
+            // Whatever happened, do not leave Command down inside the Mac.
+            releaseAllKeys();
+            installRunning = false;
+            installBtn.classList.remove('active');
+        }
+    }
+
+    const installBtn = document.getElementById('install-btn');
+    onTap(installBtn, () => {
+        if (installRunning) { installRunning = false; showToast('Stopped'); return; }
+        askConfirm(
+            'Install the mod on “' + INSTALL_DISK_NAME + '” and start Cythera?\n\n' +
+            'Drop the .dsk the viewer exported on the emulator first, and leave the ' +
+            'Finder in front — this types at it, so whatever is frontmost gets the keys. ' +
+            'It replaces the Cythera Data in the game’s folder, which cannot be undone.',
+            () => { runInstall(); });
+    });
+ 
+ 
+    /* ---- Pointing at the emulated screen --------------------------------
+       One code path for a finger, a stylus and a mouse.
+
+       This was three `touch*` handlers, which is why the page could not be
+       used with a mouse at all: #touch-overlay is stretched over the iframe so
+       that it can catch touches, so every click landed on the overlay -- and
+       the overlay listened for nothing a mouse produces. The emulator was
+       there on the screen, plainly visible, and unclickable.
+
+       The three touch modes describe what a *finger* does. A mouse or a stylus
+       already points, so it is always Direct; Trackpad, which exists to move a
+       pointer you cannot put your finger on, means nothing to one. Pan View
+       applies to both: there, dragging moves the view. */
+    let pzScale = 1, pzX = 0, pzY = 0;
+    let cursorX = baseWidth / 2, cursorY = baseHeight / 2;
+
+    const FINGER_OFFSET_Y = -12;   // a fingertip covers what it is aiming at
+    const TAP_MS = 350;            // longer than this is a press, not a tap
+    const TAP_SLOP = 8;            // and further than this is a drag
+
+    const pointers = new Map();    // live pointers, in the order they arrived
+    const isPrecise = e => e.pointerType === 'mouse' || e.pointerType === 'pen';
+    const modeFor = e => (isPrecise(e) && touchMode === 1) ? 0 : touchMode;
+
+    let primaryId = null, startX = 0, startY = 0, lastX = 0, lastY = 0;
+    let gestureStart = 0, isTwoFingerTap = false, isClickCandidate = false;
+    let dragTimer = null;
+    let pinchDist = 0, initialPzScale = 1, initialPzX = 0, initialPzY = 0;
+    let pinchCenterX = 0, pinchCenterY = 0;
+
+    // Which buttons are down inside the emulated Mac. Nothing tracked this, so
+    // a gesture the browser took over -- a system edge swipe, a call arriving,
+    // a window losing focus mid-drag -- left the button down for good: in the
+    // Finder, a window dragged forever; in Cythera, an item never let go of.
+    const heldButtons = new Set();
+    function pressButton(b) { if (!heldButtons.has(b)) { heldButtons.add(b); mouseButton(b, true); } }
+    function releaseButton(b) { if (heldButtons.delete(b)) mouseButton(b, false); }
+    function releaseAllButtons() { for (const b of Array.from(heldButtons)) releaseButton(b); }
+    // The outbox below guarantees the press and the release reach the Mac as
+    // two separate levels, so a click no longer has to time its own release.
+    function clickOnce(button) { pressButton(button); releaseButton(button); }
+    const buttonOf = e => (e.button === 2 ? 2 : e.button === 1 ? 1 : 0);
+
+    function getEmulatorCoords(clientX, clientY, offsetY) {
+        // #scale-target *is* the emulated screen, and its rect already carries
+        // both the fit-to-window scale and the pinch zoom.
+        const rect = scaleTarget.getBoundingClientRect();
+        const sx = (rect.width / screenWidth) || 1, sy = (rect.height / screenHeight) || 1;
+        return {
+            x: (clientX - rect.left) / sx,
+            y: (clientY - rect.top) / sy + (offsetY || 0),
+        };
+    }
+
+    function setCursor(x, y) {
+        cursorX = Math.max(0, Math.min(screenWidth - 1, x));
+        cursorY = Math.max(0, Math.min(screenHeight - 1, y));
+        moveMouse(cursorX, cursorY);
+    }
+
+    function updatePanCursor() {
+        const c = getEmulatorCoords(window.innerWidth / 2, window.innerHeight / 2);
+        setCursor(c.x, c.y);
+    }
+
+    // ---- zoom ---------------------------------------------------------
+    function zoomAbout(clientX, clientY, wanted) {
+        const maxZoom = Math.max(1, 2.5 / cssScale);
+        const next = Math.min(Math.max(1, wanted), maxZoom);
+        if (next === pzScale) return;
+        const ratio = next / pzScale;
+        pzX = clientX - (clientX - pzX) * ratio;
+        pzY = clientY - (clientY - pzY) * ratio;
+        pzScale = next;
+        updatePanZoom();
+        if (touchMode === 2) updatePanCursor();
+    }
+
+    function pinchPair() { return [...pointers.values()].slice(0, 2); }
+
+    function beginPinch() {
+        const [a, b] = pinchPair();
+        if (!a || !b) return;
+        if (dragTimer) { clearTimeout(dragTimer); dragTimer = null; }
+        releaseAllButtons();
+        pinchDist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+        initialPzScale = pzScale; initialPzX = pzX; initialPzY = pzY;
+        pinchCenterX = (a.x + b.x) / 2; pinchCenterY = (a.y + b.y) / 2;
+        isClickCandidate = false;
+        isTwoFingerTap = true;
+        gestureStart = Date.now();
+    }
+
+    function updatePinch() {
+        const [a, b] = pinchPair();
+        if (!a || !b) return;
+        const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+        const dist = Math.hypot(a.x - b.x, a.y - b.y);
+        if (Math.abs(dist - pinchDist) > 15 || Math.hypot(cx - pinchCenterX, cy - pinchCenterY) > 15)
+            isTwoFingerTap = false;
+        const maxZoom = Math.max(1, 2.5 / cssScale);
+        const next = Math.min(Math.max(1, initialPzScale * (dist / pinchDist)), maxZoom);
+        const ratio = next / initialPzScale;
+        pzX = cx - (pinchCenterX - initialPzX) * ratio;
+        pzY = cy - (pinchCenterY - initialPzY) * ratio;
+        pzScale = next;
+        updatePanZoom();
+        if (touchMode === 2) updatePanCursor();
+    }
+
+    function updatePanZoom() {
+        const scaledW = window.innerWidth * pzScale, scaledH = window.innerHeight * pzScale;
+        if (pzScale <= 1) { pzX = 0; pzY = 0; }
+        else {
+            pzX = Math.min(0, Math.max(pzX, window.innerWidth - scaledW));
+            pzY = Math.min(0, Math.max(pzY, window.innerHeight - scaledH));
+        }
+        panZoomContainer.style.transform = `translate(${pzX}px, ${pzY}px) scale(${pzScale})`;
+    }
+
+    // ---- the pointers themselves ---------------------------------------
+    touchOverlay.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        // Capture, so a drag that outruns the overlay -- off the edge of the
+        // window, over a floating control -- keeps arriving here.
+        touchOverlay.setPointerCapture?.(e.pointerId);
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+        if (pointers.size === 2) { beginPinch(); return; }
+        if (pointers.size > 2) return;
+
+        primaryId = e.pointerId;
+        startX = lastX = e.clientX; startY = lastY = e.clientY;
+        gestureStart = Date.now();
+        isTwoFingerTap = false;
+        isClickCandidate = true;
+
+        const mode = modeFor(e);
+        if (mode === 2) { touchOverlay.classList.add('panning'); return; }
+
+        if (isPrecise(e)) {
+            // A real button, pressed where the pointer already is. The right
+            // one goes through as the right one; the two-finger tap below is
+            // how a finger says the same thing.
+            const c = getEmulatorCoords(e.clientX, e.clientY);
+            setCursor(c.x, c.y);
+            pressButton(buttonOf(e));
+            isClickCandidate = false;
+        } else if (mode === 0) {
+            // Direct: the finger is the pointer, and it presses as it lands,
+            // which is what makes dragging things around work.
+            const c = getEmulatorCoords(e.clientX, e.clientY, FINGER_OFFSET_Y);
+            setCursor(c.x, c.y);
+            pressButton(0);
+            isClickCandidate = false;
+        } else {
+            // Trackpad: hold still for 0.4s and the button locks down.
+            dragTimer = setTimeout(() => {
+                dragTimer = null; isClickCandidate = false; pressButton(0);
+            }, 400);
+        }
+    });
+
+    touchOverlay.addEventListener('pointermove', e => {
+        const p = pointers.get(e.pointerId);
+        if (!p) {
+            // A mouse with no button down still has to move the pointer inside
+            // the Mac: menus do not highlight, and Cythera's cursor never
+            // changes shape over something it can act on, without this.
+            if (isPrecise(e) && modeFor(e) !== 2) {
+                const c = getEmulatorCoords(e.clientX, e.clientY);
+                setCursor(c.x, c.y);
+            }
+            return;
+        }
+        e.preventDefault();
+        p.x = e.clientX; p.y = e.clientY;
+        if (pointers.size >= 2) { updatePinch(); return; }
+        if (e.pointerId !== primaryId) return;
+
+        const dx = e.clientX - lastX, dy = e.clientY - lastY;
+        lastX = e.clientX; lastY = e.clientY;
+        // Measured from where the gesture started, not from the last event: a
+        // slow drag never travels 8 pixels between two moves, so a tap used to
+        // be able to wander the whole screen and still count as a tap.
+        const travelled = Math.hypot(e.clientX - startX, e.clientY - startY);
+        if (travelled > TAP_SLOP) isClickCandidate = false;
+
+        const mode = modeFor(e);
+        if (mode === 2) {
+            pzX += dx; pzY += dy;
+            updatePanZoom();
+            updatePanCursor();
+        } else if (isPrecise(e) || mode === 0) {
+            const c = getEmulatorCoords(e.clientX, e.clientY, isPrecise(e) ? 0 : FINGER_OFFSET_Y);
+            setCursor(c.x, c.y);
+        } else {
+            if (dragTimer && travelled > 6) { clearTimeout(dragTimer); dragTimer = null; }
+            const k = 1.5 / (cssScale * pzScale);
+            setCursor(cursorX + dx * k, cursorY + dy * k);
+        }
+    });
+
+    function endPointer(e, cancelled) {
+        if (!pointers.delete(e.pointerId)) return;
+        if (touchOverlay.hasPointerCapture?.(e.pointerId)) touchOverlay.releasePointerCapture(e.pointerId);
+        touchOverlay.classList.remove('panning');
+
+        if (pointers.size >= 1) {
+            // One finger of a pinch lifted. Hand the gesture to what is left,
+            // so the survivor's next move continues from where it is rather
+            // than jumping by however far apart the two fingers were.
+            const [id, p] = pointers.entries().next().value;
+            primaryId = id;
+            startX = lastX = p.x; startY = lastY = p.y;
+            isClickCandidate = false;
+            if (pointers.size >= 2) beginPinch();
+            return;
+        }
+
+        if (dragTimer) { clearTimeout(dragTimer); dragTimer = null; }
+        const elapsed = Date.now() - gestureStart;
+
+        if (cancelled) {
+            releaseAllButtons();
+        } else if (heldButtons.size) {
+            // A press that has already gone through: let go of it.
+            if (isPrecise(e)) releaseButton(buttonOf(e)); else releaseAllButtons();
+        } else if (isTwoFingerTap && elapsed < TAP_MS) {
+            clickOnce(2);
+        } else if (isClickCandidate && elapsed < TAP_MS) {
+            if (modeFor(e) === 2) {
+                // Pan View: tap where you meant, and click there.
+                const c = getEmulatorCoords(e.clientX, e.clientY, isPrecise(e) ? 0 : FINGER_OFFSET_Y);
+                setCursor(c.x, c.y);
+                clickOnce(0);
+            } else {
+                clickOnce(0);
+            }
+        }
+        isTwoFingerTap = false;
+        isClickCandidate = false;
+        primaryId = null;
+    }
+    touchOverlay.addEventListener('pointerup', e => endPointer(e, false));
+    touchOverlay.addEventListener('pointercancel', e => endPointer(e, true));
+
+    // Nothing in the embed API carries a scroll wheel through to the emulated
+    // Mac, so the wheel is free to be the desktop half of the pinch.
+    touchOverlay.addEventListener('wheel', e => {
+        e.preventDefault();
+        const step = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+        zoomAbout(e.clientX, e.clientY, pzScale * Math.exp(-step * 0.002));
+    }, { passive: false });
+
+    // The right button belongs to the emulated Mac, not to the browser.
+    touchOverlay.addEventListener('contextmenu', e => e.preventDefault());
+
+    /* ---- A real keyboard -------------------------------------------------
+       The emulator is in a cross-origin iframe with #touch-overlay on top of
+       it, so it can never take the keyboard focus: on a desktop this page had
+       no keyboard at all beyond the on-screen buttons, and Cythera is a game
+       played on the numeric keypad.
+
+       Keys go through by `code`, which names the physical key, so a Dvorak or
+       AZERTY layout arrives as the key the emulator's own table knows. A code
+       it does not recognise it ignores. */
+    const BROWSER_OWNS = new Set(['F5', 'F11', 'F12']);
+    function keyboardGoesToEmulator(e) {
+        if (!hudLayer.classList.contains('active')) return false;   // not started yet
+        if (!helpPanel.hidden || !modalEl.hidden) return false;
+        const t = e.target;
+        if (!t) return true;
+        if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return false;
+        // A focused on-screen control handles its own Enter and Space; without
+        // this, pressing one would also send the key straight to the Mac.
+        if (t.closest && t.closest('#hud-layer')) return false;
+        return true;
+    }
+    function browserKeepsKey(e) {
+        if (BROWSER_OWNS.has(e.key)) return true;
+        // Reload, new tab, close, address bar: the browser acts on these
+        // whatever this page asks for, and forwarding one only leaves a
+        // modifier stuck down inside the emulated Mac.
+        return (e.ctrlKey || e.metaKey) && /^Key[RTWNLQ]$/.test(e.code);
+    }
+    document.addEventListener('keydown', e => {
+        if (!keyboardGoesToEmulator(e) || browserKeepsKey(e)) return;
+        e.preventDefault();          // no page scrolling on Space or the arrows
+        if (e.repeat || !e.code) return;   // the Mac does its own repeating
+        pressKey(e.code);
+    });
+    const isModifierCode = code => /^(Meta|Control|Alt|Shift)/.test(code);
+    document.addEventListener('keyup', e => {
+        if (!keyboardGoesToEmulator(e) || !e.code) return;
+        releaseKey(e.code);
+        // macOS does not deliver keyup for a non-modifier key pressed while
+        // Command is held (mihaip/infinite-mac#89), so the emulated Mac is
+        // left holding it down. Infinite Mac works around this for its own
+        // keyboard; keys sent through the embed API arrive past that, so the
+        // same sweep has to happen here. Releasing a key that is already up
+        // costs nothing, which is why this is not conditional on the platform.
+        if (e.code.startsWith('Meta')) {
+            for (const code of Array.from(heldKeys)) {
+                if (!isModifierCode(code)) releaseKey(code);
+            }
+        }
+    });
+
+    /* ---- Dropping a file on the emulator --------------------------------
+       Infinite Mac already accepts dropped files: a disk image is mounted,
+       and anything else is copied into the emulated Mac's Downloads folder --
+       which is how `sources/Cythera.hqx` and `sources/Cythera Data.hqx` get
+       into the machine, StuffIt Expander being right there on the Infinite HD.
+
+       That drop has to land on the *iframe*, because it is the iframe's own
+       page that handles it. Nothing here can forward a File across origins:
+       the embed API takes a URL for emulator_load_disk, and infinitemac.org's
+       server is what fetches that URL, so a blob: made from a local file is
+       useless to it.
+
+       And the drop could not land on the iframe, because #touch-overlay is
+       stretched across it to catch touches, and a drag hits the topmost
+       element. So the overlay steps aside for the duration of a drag. */
+    let dragDepth = 0;
+    const dropHint = document.getElementById('drop-hint');
+    function draggingFiles(e) {
+        const dt = e.dataTransfer;
+        return !!dt && Array.prototype.indexOf.call(dt.types || [], 'Files') >= 0;
+    }
+    window.addEventListener('dragenter', e => {
+        if (!draggingFiles(e)) return;
+        dragDepth++;
+        touchOverlay.style.pointerEvents = 'none';
+        dropHint.hidden = false;
+    });
+    window.addEventListener('dragleave', e => {
+        if (!draggingFiles(e)) return;
+        if (--dragDepth > 0) return;
+        dragDepth = 0;
+        touchOverlay.style.pointerEvents = '';
+        dropHint.hidden = true;
+    });
+    // A drop anywhere outside the emulator would otherwise make the browser
+    // navigate away from the page and open the file.
+    window.addEventListener('dragover', e => { if (draggingFiles(e)) e.preventDefault(); });
+    // A drop that misses the screen used to be wasted -- the page said "drop it
+    // on the Mac screen" and threw the file away, so a near miss cost another
+    // trip to the Downloads folder. It is caught instead: the file goes into
+    // the card below, which is one short drag from the screen.
+    window.addEventListener('drop', e => {
+        dragDepth = 0;
+        touchOverlay.style.pointerEvents = '';
+        dropHint.hidden = true;
+        e.preventDefault();
+        const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (file) holdDisk(file, 'dropped here rather than on the screen');
+        else showToast('Drop it on the Mac screen');
+    });
+
+    /* ---- A file this page is holding -------------------------------------
+       Three ways in -- the Open button, a file dropped anywhere but the
+       screen, and a disk explorer.html handed over -- and one way out, which
+       is the part that cannot be automated.
+
+       Nothing here can put a local file into the emulator. emulator_load_disk
+       takes a URL and infinitemac.org's own server is what fetches it
+       (Mac.tsx -> getCDROMInfo -> PUT /CD-ROM/<base64>), so a blob: URL made
+       from these bytes is unreachable from there; and the drop that does work
+       is the iframe's own document's event, which no page can synthesise
+       across an origin. So the last hop is a real drag, made as short as
+       possible: the card sits at the bottom of the screen and the emulator is
+       directly above it.
+
+       The chip feature-detects itself. Adding a File to the drag data store is
+       only allowed while dragstart is running, and a browser that refuses
+       leaves dataTransfer.types without 'Files' -- in which case the chip says
+       so instead of starting a drag that would silently carry nothing. Save
+       the file is the way through on a touch device, where there is no drag
+       at all. */
+    const diskCard = document.getElementById('disk-card');
+    const diskChip = document.getElementById('disk-chip');
+    let heldDisk = null;
+
+    /* Whether a drag exists at all on this device. It does not on a phone or a
+       tablet, which is the whole point of this page, so the drag is the
+       secondary route and never the instruction a touch user is given. That
+       was the wrong way round in the first version of this card. */
+    const CAN_DRAG = (() => {
+        // Fails towards touch on purpose. A phone reports no hover and a
+        // coarse pointer, but a touch laptop reports both, and being told to
+        // drag when you cannot is worse than losing a chip you could have
+        // used -- Load it works everywhere either way.
+        try {
+            if ('ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0) return false;
+            return !window.matchMedia || window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+        } catch (e) { return false; }
+    })();
+
+    function holdDisk(file, how) {
+        heldDisk = file;
+        document.getElementById('disk-card-name').textContent =
+            file.name + ' — ' + Math.round(file.size / 1024) + ' KB';
+        document.getElementById('disk-card-why').innerHTML = (how ? 'Ready (' + how + '). ' : 'Ready. ') +
+            (CAN_DRAG
+                ? 'Drag it onto the screen, or <b>Load it</b> to pick it with the Mac\u2019s own control.'
+                : '<b>Save the file</b> first \u2014 the Mac\u2019s own picker reads your Files app, ' +
+                  'not this page \u2014 then <b>Load it</b> and choose it.');
+        diskCard.hidden = false;
+        diskChip.hidden = !CAN_DRAG;
+        diskChip.textContent = '\u21e7 or drag this onto the screen';
+    }
+    function releaseDisk() { heldDisk = null; diskCard.hidden = true; }
+
+    diskChip.addEventListener('dragstart', e => {
+        if (!heldDisk) { e.preventDefault(); return; }
+        try {
+            e.dataTransfer.items.add(heldDisk);
+            e.dataTransfer.effectAllowed = 'copy';
+        } catch (err) { /* falls through to the check below */ }
+        const carriesFile = Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0;
+        if (!carriesFile) {
+            e.preventDefault();
+            diskChip.textContent = 'This browser will not let a page start a file drag \u2014 ' +
+                                   'save it and drag it from there';
+        }
+    });
+
+    /* ---- File mode: infinite-mac's own picker ----------------------------
+       This is the only way a file on this device reaches the emulator, and on
+       a phone it is the ONLY way at all -- there is no drag on a touch screen,
+       which is what the chip above is for and why it cannot be the whole
+       story.
+
+       The control belongs to infinite-mac and is inside a cross-origin iframe,
+       so this page cannot tap it; what it can do is get it on screen and out
+       of its own way. The iframe fills the window, this page's overlay and HUD
+       stand down, and a banner says which control to tap. `input.click()` on
+       the far side opens the system file picker, which on iOS and Android is
+       the Files app -- the file has to be saved there first, which is what
+       Save the file on the card is for.
+
+       No reload is involved, so nothing that is already running is lost. That
+       is the whole reason the screenSize parameter is set at boot rather than
+       when this button is pressed. */
+    const fileBanner = document.getElementById('file-banner');
+    const stripFrame = document.getElementById('file-strip-frame');
+    const emulatorWrapper = document.getElementById('emulator-wrapper');
+    const fileArrow = document.getElementById('file-arrow');
+    let inFileMode = false;
+    /* Where infinite-mac's own control row is, in the iframe's own pixels.
+
+       Measured across six iframe sizes and exact in every one. The ScreenFrame
+       is (screen + 22) square with the screen 11px inside it; it is
+       left-anchored and VERTICALLY CENTRED, so making the iframe taller than
+       the frame pushes everything down by half the difference. The control row
+       hangs 18px below the screen and is 15px tall. Putting those together,
+       with EXTRA of slack below the frame:
+
+           shift    = EXTRA / 2
+           row top  = screenHeight + 29 + shift
+           row left = 10 (logo), then "< Home", then "Load File" ending at ~120
+
+       Verified against a real run: screen 1385, EXTRA 50 -> row top 1439,
+       which is exactly where it was measured. */
+    const FILE_STRIP_EXTRA = 60;
+    const FILE_STRIP_SHIFT = FILE_STRIP_EXTRA / 2;
+    // How far along the row the useful controls run. Home and Load File are
+    // the first two; 145 covers both with room to spare.
+    const FILE_STRIP_WIDTH = 145;
+    let fileZoomedOut = false;
+
+    function layOutFileMode() {
+        const vw = window.innerWidth, vh = window.innerHeight;
+        const w = screenWidth + FRAME_INSET * 2;
+        const h = screenHeight + FRAME_INSET * 2 + FILE_STRIP_EXTRA;
+        iframe.style.width = `${w}px`;
+        iframe.style.height = `${h}px`;
+        if (fileZoomedOut) {
+            // The escape hatch: the whole emulator, scaled to fit. Small, but
+            // it does not depend on the row being where it was measured -- so
+            // if infinite-mac ever moves its controls, there is still a way
+            // through.
+            const k = Math.min(vw / w, vh / h);
+            iframe.style.clipPath = 'none';
+            iframe.style.transform =
+                `translate(${Math.max(0, (vw - w * k) / 2)}px, ${Math.max(0, (vh - h * k) / 2)}px) scale(${k})`;
+            stripFrame.hidden = true;
+            fileArrow.hidden = true;
+            return;
+        }
+        /* Scaled UP, not down. The row is 15px tall in the iframe's own
+           pixels; at a scale that fits the whole 640x1385 screen into a phone
+           it came out about nine pixels tall, which is why this looked broken.
+           The cap keeps "Load File" itself on screen horizontally. */
+        const k = Math.max(1.4, Math.min(3.2, vw / FILE_STRIP_WIDTH));
+        const bandTop = screenHeight + 22 + FILE_STRIP_SHIFT;   // just above the row
+        const bandHeight = 32;                                   // the row plus air
+        // The strip sits clear of the bottom edge, where a phone browser puts
+        // its own toolbar and where the control was disappearing.
+        const stripH = Math.round(bandHeight * k);
+        const stripTop = Math.max(12, vh - 96 - stripH);
+        iframe.style.clipPath = `inset(${bandTop}px 0px ${Math.max(0, h - bandTop - bandHeight)}px 0px)`;
+        iframe.style.transform = `translate(0px, ${stripTop - bandTop * k}px) scale(${k})`;
+        stripFrame.hidden = false;
+        stripFrame.style.top = `${stripTop - 2}px`;
+        stripFrame.style.height = `${stripH + 4}px`;
+        fileArrow.hidden = false;
+        fileArrow.style.top = `${Math.max(0, stripTop - 34)}px`;
+    }
+
+    /* Leaving file mode on its own once the picker has been used.
+
+       This was the bug: file mode clips the iframe down to the control row, so
+       the Mac's screen is not drawn at all, and the panel covers the rest.
+       Choose a file and NOTHING appears to happen -- the upload is running
+       behind an opaque panel with no way out but a Done button nobody should
+       have to hunt for.
+
+       A page cannot see inside the picker: it belongs to the operating system
+       and the control belongs to a cross-origin iframe. What it can see is
+       that it lost focus when the picker opened and got it back when the
+       picker closed, which is the standard way to know a file dialog has been
+       dismissed. That is what this listens for -- with visibilitychange
+       alongside it, because a phone browser backgrounds the page rather than
+       blurring it, and a timer as a floor so a browser that reports neither
+       still comes back on its own. */
+    let filePickerBlurred = false, fileModeTimer = null;
+    function noteFileModeBlur() { if (inFileMode) filePickerBlurred = true; }
+    function noteFileModeFocus() {
+        if (!inFileMode || !filePickerBlurred) return;
+        filePickerBlurred = false;
+        // A moment for the picker to hand the file over before the view moves.
+        setTimeout(() => {
+            if (!inFileMode) return;
+            setFileMode(false);
+            showToast('Back to the Mac — a chosen file is loading now');
+        }, 900);
+    }
+    window.addEventListener('blur', noteFileModeBlur);
+    window.addEventListener('focus', noteFileModeFocus);
+    document.addEventListener('visibilitychange', () =>
+        document.hidden ? noteFileModeBlur() : noteFileModeFocus());
+
+    function setFileMode(on) {
+        inFileMode = on;
+        iframe.classList.toggle('file-mode', on);
+        fileBanner.hidden = !on;
+        // The overlay would swallow every tap meant for the control, and the
+        // pads and drawer would sit on top of the emulator's own chrome.
+        touchOverlay.style.pointerEvents = on ? 'none' : '';
+        hudLayer.style.visibility = on ? 'hidden' : '';
+        clearTimeout(fileModeTimer);
+        filePickerBlurred = false;
+        if (on) {
+            releaseEverything();
+            fileZoomedOut = false;
+            /* The floor. If a browser reports neither blur nor
+               visibilitychange, file mode still ends by itself rather than
+               sitting over the screen for ever. Long enough to find a file in
+               the Files app without being thrown out mid-search. */
+            fileModeTimer = setTimeout(() => {
+                if (inFileMode) { setFileMode(false); showToast('Back to the Mac'); }
+            }, 120000);
+            /* position:fixed does NOT escape a transformed ancestor -- it is
+               positioned against that ancestor instead of the viewport, and
+               #scale-target carries the fit-to-window scale while
+               #pan-zoom-container carries the pinch zoom and a
+               will-change:transform, which is enough on its own to make a
+               containing block. Leaving them in place scaled the strip by the
+               page's own factor a second time, which put the control at 62% of
+               the size asked for and 270px above where it was aimed. */
+            panZoomContainer.style.willChange = 'auto';
+            panZoomContainer.style.transform = 'none';
+            scaleTarget.style.transform = 'none';
+            /* And the iframe's own z-index cannot lift it out of
+               #emulator-wrapper, which has z-index 1 and so is a stacking
+               context of its own: every z-index inside it is resolved against
+               its siblings, not against this panel. That is exactly how the
+               control ended up painted over by the very panel pointing at it.
+               The wrapper is what has to rise. */
+            emulatorWrapper.style.zIndex = '2500';
+            document.getElementById('file-banner-text').innerHTML =
+                'The strip below is the Mac\u2019s own control row. Tap <b>Load File</b> in it and ' +
+                'choose your file \u2014 a disk image mounts, anything else lands in the Mac\u2019s ' +
+                'Downloads folder. Nothing restarts, so whatever is running is safe.' +
+                '<br><br>This panel closes by itself once you have chosen, so you can watch the ' +
+                'file arrive.';
+            layOutFileMode();
+        } else {
+            iframe.style.transform = '';
+            iframe.style.clipPath = '';
+            stripFrame.hidden = true;
+            fileArrow.hidden = true;
+            panZoomContainer.style.willChange = '';
+            emulatorWrapper.style.zIndex = '';
+            updatePanZoom();
+            positionIframe();
+            applyCssScale();
+        }
+    }
+    onTap(document.getElementById('open-file-btn'), () => setFileMode(!inFileMode));
+    onTap(document.getElementById('file-banner-done'), () => setFileMode(false));
+    onTap(document.getElementById('file-banner-zoom'), () => {
+        fileZoomedOut = !fileZoomedOut;
+        document.getElementById('file-banner-zoom').textContent =
+            fileZoomedOut ? 'Show just the controls' : 'Show the whole emulator';
+        layOutFileMode();
+    });
+
+    // This page's own picker is still here, but it is the lesser of the two:
+    // what it gets is a file in this page's hands, which still has to reach
+    // the emulator somehow. It is reached from the card, not the drawer.
+    document.getElementById('disk-file-input').addEventListener('change', e => {
+        const file = e.target.files && e.target.files[0];
+        if (file) holdDisk(file, 'opened from this device');
+        e.target.value = '';   // so the same file can be chosen twice
+    });
+    onTap(document.getElementById('disk-card-save'), () => {
+        if (!heldDisk) return;
+        const url = URL.createObjectURL(heldDisk);
+        const a = document.createElement('a');
+        a.href = url; a.download = heldDisk.name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        showToast('Saved');
+    });
+    onTap(document.getElementById('disk-card-load'), () => setFileMode(true));
+    onTap(document.getElementById('disk-card-dismiss'), releaseDisk);
+
+    /* The handoff from explorer.html. Same origin, so the same IndexedDB:
+       these four names are a contract between two pages that cannot see each
+       other, and utilities/mobile_handoff_check.mjs fails if either side
+       changes one. The record is deleted once it is in hand -- it is a
+       delivery, not a cache, and the archive explorer.html remembers lives in
+       a different store for that reason. */
+    const HANDOFF_DB = 'cythera-viewer', HANDOFF_DB_VERSION = 2;
+    const HANDOFF_STORE = 'handoff', HANDOFF_KEY = 'disk';
+    function takeHandoff() {
+        return new Promise((resolve, reject) => {
+            let req;
+            try { req = indexedDB.open(HANDOFF_DB, HANDOFF_DB_VERSION); }
+            catch (err) { reject(err); return; }
+            // Only explorer.html creates the stores. Opening at the same
+            // version cannot upgrade, so a visitor who has never opened that
+            // page gets an empty database rather than a broken one.
+            req.onupgradeneeded = () => {
+                const db = req.result;
+                if (!db.objectStoreNames.contains(HANDOFF_STORE)) db.createObjectStore(HANDOFF_STORE);
+            };
+            req.onerror = () => reject(req.error || new Error('IndexedDB unavailable'));
+            req.onsuccess = () => {
+                const db = req.result;
+                if (!db.objectStoreNames.contains(HANDOFF_STORE)) { db.close(); resolve(null); return; }
+                const tx = db.transaction(HANDOFF_STORE, 'readwrite');
+                const store = tx.objectStore(HANDOFF_STORE);
+                const get = store.get(HANDOFF_KEY);
+                get.onsuccess = () => {
+                    if (get.result) store.delete(HANDOFF_KEY);
+                    resolve(get.result || null);
+                };
+                get.onerror = () => reject(get.error);
+                tx.oncomplete = () => db.close();
+            };
+        });
+    }
+    // ?handoff=1, and NOT ?disk=: this page has read ?disk= as the system disk
+    // to boot since long before this existed, so a handoff on that parameter
+    // would have asked the emulator for a machine called "handoff".
+    /* ?patch=<offset:old:new,...> -- an edit as bytes rather than a file. This
+       is the route that works on a phone: nothing has to reach the emulator's
+       file picker, because nothing is a file. */
+    const patchBtn = document.getElementById('patch-btn');
+    onTap(patchBtn, () => {
+        if (!patchRuns) return;
+        const n = patchRuns.reduce((a, r) => a + r.now.length, 0);
+        askConfirm('Type the change into the game\u2019s own Cythera Data?\n\n' +
+            n + ' byte(s) in ' + patchRuns.length + ' place(s). It opens Script Editor and runs a ' +
+            'script that checks the old bytes first and stops if they do not match. Leave the ' +
+            'Finder in front while it types.', () => runPatch());
+    });
+    /* The zip's installer. It is always offered, because this page cannot see
+       what the emulator has been given -- a file loaded through the Mac's own
+       picker never passes through here. With nothing unpacked, every step is a
+       no-op and the script says so. */
+    onTap(document.getElementById('zipinstall-btn'), () =>
+        askConfirm('Move the archive from the ' + ZIP_FOLDER_NAME + ' folder into the game\u2019s ' +
+            'folder?\n\nLoad the .zip with File \u2192 Load File first. This types a short script ' +
+            'that finds it and copies it \u2014 about two minutes. Leave the Finder in front.',
+            () => runZipInstall()));
+
+    if (urlParams.get('patch')) {
+        patchRuns = decodePatch(urlParams.get('patch'));
+        if (patchRuns) {
+            patchBtn.hidden = false;
+            const n = patchRuns.reduce((a, r) => a + r.now.length, 0);
+            showToast('A ' + n + '-byte patch is ready — press Patch');
+        } else {
+            showToast('That patch could not be read');
+        }
+    }
+
+    if (urlParams.get('handoff') === '1') {
+        takeHandoff().then(rec => {
+            if (!rec || !rec.bytes) { showToast('Nothing was waiting'); return; }
+            holdDisk(new File([rec.bytes], rec.name || 'disk.dsk',
+                              { type: 'application/octet-stream' }),
+                     'sent from the data viewer');
+        }).catch(() => showToast('Could not read what was sent'));
+    }
+
+    /* ---- Start ---------------------------------------------------------- */
+    function buildGestureLegend() {
+        const ul = document.getElementById('gesture-legend');
+        if (!ul) return;
+        ul.innerHTML = GESTURES.map(g =>
+            `<li><b>${g.name}</b> — ${g.hint}</li>`).join('');
+    }
+
+    restoreHudLayout();
+    buildGestureLegend();
+    setTouchMode(Number.isInteger(prefs.touchMode) ? prefs.touchMode : 0);
+    setCrisp(prefs.crisp === undefined ? true : !!prefs.crisp);
+    paintSpeed();
+    setStartStatus('Preparing…', false);
+    // The emulator is not asked for until cross-origin isolation has been
+    // settled one way or the other, because settling it can mean reloading
+    // this page -- and a reload halfway through downloading a machine and a
+    // disk image is the one thing on a phone that would actually be expensive.
+    settleCrossOriginIsolation().then(() => {
+        setStartStatus('Downloading the emulator and the Cythera disk…', false);
+        iframe.src = buildEmbedUrl(currentSpeed);
+        // Neither the emulator nor the disk image is served from here, and both
+        // are third-party. If nothing reports in, say so rather than showing an
+        // encouraging message over a screen that is never going to arrive.
+        setTimeout(() => {
+            if (emulatorReady) return;
+            setStartStatus('Still waiting on infinitemac.org and the Cythera disk image. ' +
+                           'If this does not clear, check the network — both are downloaded from other sites.', false);
+        }, 30000);
+    });
+
+    // Keep the windows reachable when the window changes shape.
+    window.addEventListener('resize', () => {
+        for (const win of hudWindows) {
+            const r = win.getBoundingClientRect();
+            placeWindow(win, r.left, r.top);
+        }
+        // Only once it has been moved: until then its own CSS centres it.
+        if (settingsDrawer.style.left) {
+            const r = settingsDrawer.getBoundingClientRect();
+            placeWindow(settingsDrawer, r.left, r.top);
+        }
+    });
+</script>
+</body>
+</html>
