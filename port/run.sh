@@ -19,11 +19,13 @@ command -v ninja >/dev/null 2>&1 && GEN="Ninja"
 
 # cythera_symbols.txt names the 1877 functions in traces, and is what
 # tools/opcensus.py and tools/pefdisasm.py read. It is not in this repository
-# -- it was produced once by walking the binary's own traceback tables -- and
-# the port runs perfectly well without it, printing addresses where it would
-# print names. So it is passed only when it is actually present.
+# -- it was produced once by walking the binary's own traceback tables, and
+# lives at the root of ratlizard/cythera-workbench with the scripts that need
+# it. The port runs perfectly well without it, printing addresses where it
+# would print names, so it is passed only when it is actually present.
 syms=()
-for cand in "$root/reference/cythera_symbols.txt" "$root/cythera_symbols.txt"; do
+for cand in "$root/reference/cythera_symbols.txt" "$root/cythera_symbols.txt" \
+            "$root/../cythera-workbench/cythera_symbols.txt"; do
   [[ -f "$cand" ]] && { syms=(--symbols "$cand"); break; }
 done
 
@@ -31,8 +33,8 @@ extract="$here/build/extract"
 if [[ ! -f "$extract/Cythera.data" ]]; then
   echo "==> extracting the original forks from the BinHex archives"
   mkdir -p "$extract"
-  python3 "$root/port/binhex_decode.py" "$root/reference/Cythera.hqx" "$extract"
-  python3 "$root/port/binhex_decode.py" "$root/reference/Cythera Data.hqx" "$extract"
+  python3 "$root/port/binhex_decode.py" "$root/reference/game/Cythera.hqx" "$extract"
+  python3 "$root/port/binhex_decode.py" "$root/reference/game/Cythera Data.hqx" "$extract"
 fi
 
 echo "==> building"

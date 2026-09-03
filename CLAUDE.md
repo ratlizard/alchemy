@@ -17,7 +17,7 @@ assumed:
 |---|---|
 | `ratlizard/grimoire` | public, GitHub Pages. The site: browser tools that read and narrowly edit Cythera's files. |
 | **`ratlizard/alchemy`** | **public. This one.** `port/` and `mobile/`, both superseded. |
-| `ratlizard/cythera-tools` | private. The Python tools and the notes of the systemless work. Holds `tools/`, which `port/`'s scripts still call — see *A known break*. |
+| `ratlizard/cythera-workbench` | private. The Python tools and the notes of the systemless work. Canonical home of the seven scripts vendored here as `tools/` — see below. |
 | `ratlizard/systemless` | public fork of benletchford/systemless. Where running the game happens now, on branch `cythera-detailed`. |
 | `ratlizard/delvmod` | public fork. The correctness oracle for Cythera's formats; a submodule of `grimoire`, not of this one. |
 | `e-z-g/cythera-reference` | private. The game, its documentation, the community's writing, the cited Apple documentation. Expected here as `reference/`. |
@@ -48,27 +48,34 @@ at `0x06D5A4`, the routine descriptors, the run-time `0x4EF9` patching — was
 read from PowerPC code and must be re-derived from the `CODE` resources before
 it is asserted about `systemless`. That mistake has been made twice.
 
-## A known break, not yet fixed
+## `tools/` — vendored copies, not originals
 
-The repository split left `port/` calling into a tree it no longer has:
+Seven scripts that `port/` calls or cites: `pefdisasm.py`, `pefdump.py`,
+`pefreloc_sim.py`, `opcensus.py`, `screen_to_png.py`, `rsrcdump.py` and
+`delv_compat.py`. **Every one is a copy.** The canonical file is
+`tools/<name>` in `cythera-workbench`; each carries a `# COPY.` header saying
+so, with the source's sha256.
 
-- `port/smoke.sh:83` runs `$root/tools/screen_to_png.py` and `:149` runs
-  `$root/tools/rsrcdump.py`. There is no `tools/` here — those scripts are in
-  `cythera-tools`. The script is `set -uo pipefail` with no `-e`, so it does
-  not abort: the screen PNG is silently never written (stderr goes to
-  `/dev/null`), and the preferences invariant fails with `pref_count=0`.
-  `README.md` advertises ten invariants; it is nine and a false failure.
-- `port/README.md` and `port/POWERPC-NOTES.md` cite `../tools/pefdisasm.py`,
-  `../tools/opcensus.py` and `../tools/delv_compat.py`. Dead paths here.
-- `cythera_symbols.txt` — the 1,877 PowerPC function names — now lives at the
-  root of `cythera-tools`. `run.sh`, `smoke.sh` and `drive.sh` look for it at
-  `reference/cythera_symbols.txt` or this repository's root, find neither, and
-  pass no `--symbols`, so traces print addresses where they would print names.
+Copies rather than a submodule because this repository has to stand alone — a
+session that clones it flat gets no siblings, and `port/smoke.sh` has to run
+anyway — and because a retired tree's copies cannot drift by being developed.
+`tools/check_copies.sh` verifies them against the workbench when it is checked
+out beside this one, and skips cleanly when it is not. Run it if you touch
+anything here. **Fix bugs in the workbench and re-copy; do not edit these to
+diverge.**
 
-The agreed fix is to vendor the six scripts `port/` actually calls into a
-`tools/` here — copies, not a submodule, marked as copies with
-`cythera-tools` named as canonical — since a retired tree's copies cannot
-drift. It has not been done.
+This directory did not exist between the repository split and 3 September 2026,
+and `port/smoke.sh` called into it the whole time: with `set -uo pipefail` and
+no `-e` it did not abort, so the screen PNG was silently never written and the
+preferences invariant failed at `pref_count=0` — ten advertised invariants were
+nine and a false failure. That is what the vendoring fixed.
+
+`cythera_symbols.txt`, the 1,877 PowerPC function names, is *not* vendored: it
+is 200 KB of generated data and lives at the root of `cythera-workbench`.
+`run.sh`, `smoke.sh` and `drive.sh` try `reference/`, this repository's root,
+and `../cythera-workbench/` in that order, and pass `--symbols` only if one
+hits. Without it traces print addresses instead of names, which is not a
+failure.
 
 ## `mobile/` — the game on a phone, through an emulator
 

@@ -1,0 +1,11 @@
+sha256 of the canonical tools/<name> in ratlizard/cythera-workbench that
+each file here was copied from. tools/check_copies.sh verifies these when
+that repository is checked out beside this one.
+
+2c7457376c3c9d6c1d6a64b90e3f6f865299cd6575547d22b334c6f353afad5a  pefdisasm.py
+5a32fff98c8b93293f70c7c63952da53eda4047e2943d9ab369a4062eb73400f  pefdump.py
+e4f7b99597ada344a17f617def6c6a08ce7f781f35989753a69abdd75972e59e  pefreloc_sim.py
+57cca4bee875c72005cde04720dc6bd5295e5bcf5cce35116e59a0a1711a38b1  opcensus.py
+bfda90c40bba7882b64381c20e3cfdb05b5e9cfd266796d3a030e27fd882ceb7  screen_to_png.py
+3f3160db6c20b62714c92ab8016a8d31ab6e18d78fe29abfc47669a6c0caef69  rsrcdump.py
+07aea05dfc02a1db34b100ec37b7af3cd47f68afc98f6e7d08a4c6bef3ad894e  delv_compat.py

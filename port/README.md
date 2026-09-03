@@ -86,16 +86,20 @@ that the machinery is still intact.
 ## Building and running
 
 Requires the original `Cythera.hqx` and `Cythera Data.hqx`, which this
-repository keeps in `../res/`. `run.sh` decodes both forks out of them with
-`../utilities/binhex_decode.py` on first use and leaves the result in
+repository does not have: they are in `e-z-g/cythera-reference`, expected at
+`../reference/game/`, and a symlink to a checkout of it under the name
+`reference` is the usual arrangement. `run.sh` decodes both forks out of them
+with `binhex_decode.py` beside it on first use and leaves the result in
 `build/extract/`. Nothing is downloaded and no original game data is
 redistributed.
 
 `cythera_symbols.txt` — the 1877 function names, recovered once by walking the
-binary's traceback tables — is *not* in this repository. Everything here runs
-without it; traces simply print addresses where they would print names. Drop it
-at the repository root and the scripts pick it up. `../tools/opcensus.py` and
-`../tools/pefdisasm.py` do require it.
+binary's traceback tables — is *not* in this repository; it is at the root of
+`ratlizard/cythera-workbench`, and the scripts find it there when that is
+checked out beside this one. Everything here runs without it; traces simply
+print addresses where they would print names. Dropping it at this repository's
+root works too. `../tools/opcensus.py` and `../tools/pefdisasm.py` do require
+it.
 
 ```sh
 ./run.sh                    # extract forks, build, run
@@ -232,7 +236,7 @@ readable text, which turned every opaque exit into an instruction.
    first thing it will want is pixel pattern tiling, which the character
    creation dialogue now needs first.
 6. **Audio** — route `SndPlayDoubleBuffer` and the Tune Player to SDL audio.
-   `../utilities/qtma2midi.py` already decodes the tune format.
+   `grimoire/utilities/qtma2midi.py` already decodes the tune format.
 7. **Packaging** — a signed `Cythera.app`, saves under
    `~/Library/Application Support`, and first-run extraction from the user's own
    copy of the game.

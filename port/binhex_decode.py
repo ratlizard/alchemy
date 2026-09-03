@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Decode a BinHex 4.0 (.hqx) file into its data and resource forks.
 
-    python3 utilities/binhex_decode.py "reference/Cythera Data.hqx" [outdir]
+    python3 utilities/binhex_decode.py "reference/game/Cythera Data.hqx" [outdir]
 
 Writes <outdir>/<name>.data and <outdir>/<name>.rsrc and prints the header.
 Defaults outdir to the input file's directory.

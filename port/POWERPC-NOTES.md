@@ -585,7 +585,7 @@ Watchpoints for the path, all in `TDelverApp`:
 
 ### 1a. The three record layouts, now confirmed against Apple
 
-`reference/apple_official_documentation/` has Inside Macintosh, and the three
+`reference/apple-documentation/` has Inside Macintosh, and the three
 structures this work invents are all in it. Two were guesses that turned out
 right and one had a real bug. **Do not re-derive these.**
 
@@ -730,7 +730,7 @@ previous handoff assumed. `TETextBox` already works.
 
 ### 4. The gameplay rendering path — described by the person who wrote it
 
-`../reference/delver_homepage_archive/Delving into Details.html` is Glenn
+`../reference/community/delver-homepage/Delving into Details.html` is Glenn
 Andreas's own account of the Delver engine, and it specifies this section
 better than anything reconstructable from the binary. It is much less of an
 unknown than the heading below claims.
@@ -776,7 +776,7 @@ first thing it will want is **pixel pattern tiling** — see the gaps below.
 
 `SndNewChannel` reports `notEnoughHardwareErr` and the Tune Player is a silent
 sink. Route `SndPlayDoubleBuffer` and the tune sequencer to SDL audio;
-`../utilities/qtma2midi.py` already decodes the QuickTime Music tune
+`grimoire/utilities/qtma2midi.py` already decodes the QuickTime Music tune
 format — the game's score. Then a signed `Cythera.app`, saves under
 `~/Library/Application Support`, and first-run extraction from the user's copy.
 
@@ -850,7 +850,7 @@ format — the game's score. Then a signed `Cythera.app`, saves under
 
 This port now lives beside a static site that reads the same files from the
 other direction: `../js/mac-resfork.js` and `../js/mac-rsrc-types.js` decode
-classic-Mac resource forks, PICT and NFNT in JavaScript, and `../utilities/`
+classic-Mac resource forks, PICT and NFNT in JavaScript, and `grimoire/utilities/`
 holds the harness that exercises them. Two independent implementations of one
 undocumented format are worth more than either alone, and the site's own
 harnesses say so about delvmod: a snapshot hash proves a decoder is
@@ -916,13 +916,17 @@ port/src/host/display.*   SDL2 window, framebuffer presentation, input translati
 port/tests/font_test.cpp  resolves every TxSt style; one smoke invariant
 port/tests/resfork_test.cpp  round-trips the fork writer; one smoke invariant
 ../tools/                 PEF, resource and opcode analysis; screen_to_png.py;
-                          pefdisasm.py, which reads any function statically
-../utilities/             the static site's harnesses and converters, including
+                          pefdisasm.py, which reads any function statically.
+                          Copies -- see tools/COPIES.txt
+../reference/game/        the two .hqx archives this port reads
+
+Not in this repository, in siblings checked out beside it:
+
+grimoire/utilities/       the site's harnesses and converters, including
                           qtma2midi.py for the tune format
-../js/                    a second, independent PICT / NFNT / resource-fork
+grimoire/js/              a second, independent PICT / NFNT / resource-fork
                           decoder in JavaScript -- see "Cross-checks" below
-../res/                   the two .hqx archives this port reads
-../delvmod/     data-format library (modern-Python shims live in
+grimoire/delvmod/         data-format library (modern-Python shims live in
                           ../tools/delv_compat.py)
 ```
 
@@ -1029,8 +1033,8 @@ verified headlessly at all, because nothing headless reaches `present`.
 start-up calls `SndNewChannel` three times and gets nothing. Making it play
 means routing the QuickTime Music Architecture and `SndPlayDoubleBuffer` to SDL
 audio, and QTMA is a synthesiser -- note events against instrument voices, not
-sample playback. `../utilities/qtma2midi.py` already decodes the tune format
-and `../utilities/midi2wav.py` renders MIDI, so the cheapest first version is
+sample playback. `grimoire/utilities/qtma2midi.py` already decodes the tune format
+and `grimoire/utilities/midi2wav.py` renders MIDI, so the cheapest first version is
 probably to decode the score to MIDI and play it with a small software
 synthesiser rather than to implement QTMA note-for-note.
 
@@ -1045,7 +1049,7 @@ GUI as "modelled on classic Mac OS rather than modern callback-driven systems:
 a script that opens a modal window runs its own event loop, spinning until it
 gets a response", and judged that "a complication rather than a fundamental
 problem for a reimplementation"
-(`../reference/cythera_forums/CYTHERA-COMPENDIUM.md`, "DELVER GUI MODEL",
+(`../reference/community/forum-writing/CYTHERA-COMPENDIUM.md`, "DELVER GUI MODEL",
 `[BryceSchroeder@t2020]`).
 
 That is exactly the shape this port already found from the other direction: a
@@ -1171,7 +1175,7 @@ fix; use `clut 256` and the picture's own table, which are exact.**
 
 ## Where systemless already gets to, tested
 
-Run against `../res/Cythera Installed Folder.sit` -- a StuffIt of the whole
+Run against `../reference/game/installed-folders/Cythera Installed Folder.sit` -- a StuffIt of the whole
 installed folder, which is the form systemless needs, because it populates its
 VFS from the archive and cannot see a sibling file on disk. Handed the bare
 application it fails identically whether or not `Cythera Data` sits next to it:
