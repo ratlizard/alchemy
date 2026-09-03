@@ -672,7 +672,7 @@ The original comparison and the setup steps follow.
 ### 1b (original). The route in, and how to reproduce it
 
 **Loading an existing save gets further than creating a character, and needs
-strictly less.** `res/user_addons/606_CheaterSavedGame.sit.hqx` unpacks (with
+strictly less.** `reference/community/addons/606_CheaterSavedGame.sit.hqx` unpacks (with
 `unar`) to `I.M.Cheater`, a genuine 1999 player file: type `DelP`, creator
 `Delv`, a 332 KB Delver Archive in the data fork and a 4 KB resource fork
 holding the `PICT` preview, `SCEN` and `pnot` that the delvmod wiki describes.
@@ -699,7 +699,7 @@ set up.
 To reproduce:
 
 ```sh
-unar -o /tmp/save res/user_addons/606_CheaterSavedGame.sit.hqx   # decode .hqx first
+unar -o /tmp/save reference/community/addons/606_CheaterSavedGame.sit.hqx   # decode .hqx first
 cp .../I.M.Cheater  port/build/drive/support/I.M.Cheater.data
 cat '.../I.M.Cheater/..namedfork/rsrc' > port/build/drive/support/I.M.Cheater.rsrc
 printf 'DelPDelv\0\0' > port/build/drive/support/I.M.Cheater.finf

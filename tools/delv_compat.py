@@ -1,7 +1,7 @@
 # COPY. The canonical file is tools/delv_compat.py in ratlizard/cythera-workbench;
 # fix it there and re-copy. This repository is retired, so this copy exists
 # only so port/ can run standalone -- do not edit it to diverge.
-# Verify with tools/check_copies.sh. Source sha256 07aea05dfc02a1db34b100ec37b7af3cd47f68afc98f6e7d08a4c6bef3ad894e.
+# Verify with tools/check_copies.sh. Source sha256 13e6caef0215704b189dad01623e8dbd4c5d303ffd617e0a9afc973b7450e179.
 """Make the delvmod package importable on modern Python.
 
 delvmod is a 2014-era Python 2 library. Two things stop it importing on a
@@ -17,7 +17,7 @@ oracle and an oracle you have patched is not one.
     keeps the rest of delv working. **This one is still required.**
   * **inspect.getargspec**, removed in 3.11, which rdasm.py used at import time
     to derive assembler operand rules. The checkout this repository points at
-    -- e-z-g/delvmod, the maintainer's fork -- fixes this internally at rdasm.py:65, so
+    -- ratlizard/delvmod, the maintainer's fork -- fixes this internally at rdasm.py:65, so
     the shim below is dead code against it and is kept only so that $DELVMOD
     can point at an unpatched upstream checkout and still work.
 

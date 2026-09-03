@@ -61,7 +61,7 @@
    a private window) the registration in mobile.html fails quietly and the page
    runs on the slow path, as it did before this file existed.
 
-   Part of https://github.com/e-z-g/cythera -- GPL-3.0-or-later.
+   Part of https://github.com/ratlizard/alchemy -- GPL-3.0-or-later.
 */
 
 self.addEventListener('install', () => self.skipWaiting());
