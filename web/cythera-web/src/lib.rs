@@ -6,10 +6,12 @@
 //! web is single-threaded, so that is the whole synchronisation story.
 
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 use systemless::display::{self, DisplayGamma};
 use systemless::game;
-use systemless::runner::{FixtureRunner, FixtureRunnerConfig};
+use systemless::loader::LoadedApp;
+use systemless::runner::{FixtureRunner, FixtureRunnerConfig, VfsFileSnapshot, VfsFileStat};
 
 #[link(wasm_import_module = "env")]
 extern "C" {
@@ -21,6 +23,10 @@ fn log(msg: &str) {
     unsafe { cw_log(msg.as_ptr(), msg.len()) }
 }
 
+/// What the desktop store compares to decide a file changed: both forks'
+/// lengths and hashes, the Finder info and the modification date.
+type Fingerprint = (usize, usize, u64, u64, u32, u32, u16, u32);
+
 struct State {
     runner: FixtureRunner,
     frame: Vec<u8>,
@@ -28,6 +34,21 @@ struct State {
     mouse: (i16, i16),
     width: u16,
     height: u16,
+    /// The launched application, held between `cw_load` and `cw_start` so
+    /// saves can be imported before the game looks for them.
+    app: Option<LoadedApp>,
+    /// Every persistable file's stat as it came out of the archive. A file
+    /// that still matches its baseline was never touched by the guest and is
+    /// not a save, whatever folder it is in.
+    baseline: HashMap<String, VfsFileStat>,
+    /// Fingerprints of what the page has stored. A file is offered again
+    /// only when it no longer matches.
+    synced: HashMap<String, Fingerprint>,
+    /// Files changed since the last acknowledged scan, in the order the page
+    /// reads them; `cw_save_ack` moves their fingerprints into `synced`.
+    pending: Vec<(VfsFileSnapshot, Fingerprint)>,
+    /// The full VFS path answered by `cw_vfs_find`.
+    found: String,
 }
 
 thread_local! {
@@ -81,8 +102,25 @@ pub extern "C" fn cw_error_len() -> usize {
     ERROR.with(|e| e.borrow().len())
 }
 
-/// Build the machine, load the archive at `ptr..ptr+len` (ownership passes
-/// here) and run the launch sequence. `mac_epoch_secs` seeds the guest clock:
+/// `cw_load` then `cw_start`: for a host with no saves to restore.
+#[no_mangle]
+pub extern "C" fn cw_boot(
+    ptr: *mut u8,
+    len: usize,
+    mac_epoch_secs: u32,
+    width: u32,
+    height: u32,
+) -> i32 {
+    let rc = cw_load(ptr, len, mac_epoch_secs, width, height);
+    if rc != 0 {
+        return rc;
+    }
+    cw_start()
+}
+
+/// Build the machine and load the archive at `ptr..ptr+len` (ownership
+/// passes here), stopping short of the launch sequence so the page can
+/// `cw_import` its stored saves first; `cw_start` then launches. `mac_epoch_secs` seeds the guest clock:
 /// the runner's own fallback is `SystemTime::now()`, which panics on
 /// `wasm32-unknown-unknown`. `width` and `height` are the guest screen in
 /// pixels; 0 for either takes the fork's default (800x600). Cythera lays its
@@ -90,7 +128,7 @@ pub extern "C" fn cw_error_len() -> usize {
 /// a phone asks for 640 wide in portrait or 480 high in landscape and fills
 /// the other axis. Returns 0 on success, -1 with `cw_error_*` set.
 #[no_mangle]
-pub extern "C" fn cw_boot(
+pub extern "C" fn cw_load(
     ptr: *mut u8,
     len: usize,
     mac_epoch_secs: u32,
@@ -125,7 +163,11 @@ pub extern "C" fn cw_boot(
         }
     };
     drop(bytes);
-    game::init_game(&mut runner, &app);
+    let baseline = runner
+        .vfs_file_stats_where(browser_save_path)
+        .into_iter()
+        .map(|stat| (stat.path.clone(), stat))
+        .collect();
     let (_, _, width, height, _) = runner.dispatcher().screen_mode;
     let frame = vec![0u8; usize::from(width) * usize::from(height) * 4];
     STATE.with(|s| {
@@ -136,9 +178,257 @@ pub extern "C" fn cw_boot(
             mouse: (0, 0),
             width,
             height,
+            app: Some(app),
+            baseline,
+            synced: HashMap::new(),
+            pending: Vec::new(),
+            found: String::new(),
         })
     });
     0
+}
+
+/// Run the launch sequence. Anything imported before this is on the disk
+/// the application finds. Returns -1 if nothing is loaded or it already ran.
+#[no_mangle]
+pub extern "C" fn cw_start() -> i32 {
+    with_state(|s| match s.app.take() {
+        Some(app) => {
+            game::init_game(&mut s.runner, &app);
+            0
+        }
+        None => -1,
+    })
+    .unwrap_or(-1)
+}
+
+// ---------------------------------------------------------------- saves
+//
+// The desktop runner scans the VFS every 30 frames, compares each file it
+// might persist against the archive and against what it last wrote, and
+// writes the ones that changed. The same policy, with the page as the
+// store: `cw_save_scan` collects the changed files, the page reads each
+// through the accessors and puts it in IndexedDB, and `cw_save_ack` records
+// them as stored. Only files under the game's own folders and the one
+// preference file are considered; Ambrosia's licence record and the log
+// under Preferences are not a player's state.
+
+fn browser_save_path(path: &str) -> bool {
+    let lower = path.trim_matches('/').to_ascii_lowercase();
+    if lower.is_empty()
+        || lower.starts_with("__rsrc__/")
+        || lower.starts_with("system folder/temporary items/")
+        || lower.starts_with("temporary items/")
+        || lower.starts_with("trash/")
+    {
+        return false;
+    }
+    if lower.starts_with("system folder/") {
+        return lower == "system folder/preferences/cythera preferences";
+    }
+    true
+}
+
+fn stats_match(left: &VfsFileStat, right: &VfsFileStat) -> bool {
+    left.data_len == right.data_len
+        && left.resource_len == right.resource_len
+        && left.file_type == right.file_type
+        && left.creator == right.creator
+        && left.finder_flags == right.finder_flags
+        && left.modified_date == right.modified_date
+}
+
+fn fingerprint(runner: &mut FixtureRunner, path: &str) -> Option<Fingerprint> {
+    let summary = runner.vfs_file_summary(path)?;
+    Some((
+        summary.data_len,
+        summary.resource_len,
+        summary.data_hash,
+        summary.resource_hash,
+        summary.file_type,
+        summary.creator,
+        summary.finder_flags,
+        summary.modified_date,
+    ))
+}
+
+/// Put a stored file on the disk. Buffers come from `cw_alloc` and are
+/// owned here afterwards. Call between `cw_load` and `cw_start` to restore
+/// saves; later calls add a file the game sees the next time it lists the
+/// folder. Returns -1 when nothing is loaded.
+#[no_mangle]
+pub extern "C" fn cw_import(
+    path_ptr: *mut u8,
+    path_len: usize,
+    file_type: u32,
+    creator: u32,
+    finder_flags: u32,
+    created_date: u32,
+    modified_date: u32,
+    data_ptr: *mut u8,
+    data_len: usize,
+    rsrc_ptr: *mut u8,
+    rsrc_len: usize,
+) -> i32 {
+    let path_bytes = unsafe { Vec::from_raw_parts(path_ptr, path_len, path_len) };
+    let data_fork = if data_ptr.is_null() {
+        Vec::new()
+    } else {
+        unsafe { Vec::from_raw_parts(data_ptr, data_len, data_len) }
+    };
+    let resource_fork = if rsrc_ptr.is_null() {
+        Vec::new()
+    } else {
+        unsafe { Vec::from_raw_parts(rsrc_ptr, rsrc_len, rsrc_len) }
+    };
+    let path = String::from_utf8_lossy(&path_bytes).into_owned();
+    with_state(|s| {
+        let file = VfsFileSnapshot {
+            path: path.clone(),
+            data_fork,
+            resource_fork,
+            file_type,
+            creator,
+            finder_flags: finder_flags as u16,
+            created_date,
+            modified_date,
+        };
+        s.runner.import_vfs_file(&file);
+        if let Some(fp) = fingerprint(&mut s.runner, &path) {
+            s.synced.insert(path, fp);
+        }
+        0
+    })
+    .unwrap_or(-1)
+}
+
+/// Collect the files that changed since the last acknowledged scan and
+/// return how many there are. The accessors below address them by index
+/// until `cw_save_ack` or the next scan.
+#[no_mangle]
+pub extern "C" fn cw_save_scan() -> u32 {
+    with_state(|s| {
+        s.pending.clear();
+        let stats = s.runner.vfs_file_stats_where(browser_save_path);
+        for stat in stats {
+            let untouched = !s.synced.contains_key(&stat.path)
+                && s
+                    .baseline
+                    .get(&stat.path)
+                    .is_some_and(|archive| stats_match(archive, &stat));
+            if untouched {
+                continue;
+            }
+            let Some(fp) = fingerprint(&mut s.runner, &stat.path) else {
+                continue;
+            };
+            if s.synced.get(&stat.path) == Some(&fp) {
+                continue;
+            }
+            if let Some(snapshot) = s.runner.vfs_file_snapshot(&stat.path) {
+                s.pending.push((snapshot, fp));
+            }
+        }
+        s.pending.len() as u32
+    })
+    .unwrap_or(0)
+}
+
+fn pending<R>(index: u32, f: impl FnOnce(&VfsFileSnapshot) -> R) -> Option<R> {
+    with_state(|s| s.pending.get(index as usize).map(|(snap, _)| f(snap))).flatten()
+}
+
+#[no_mangle]
+pub extern "C" fn cw_save_path_ptr(i: u32) -> *const u8 {
+    pending(i, |f| f.path.as_ptr()).unwrap_or(std::ptr::null())
+}
+#[no_mangle]
+pub extern "C" fn cw_save_path_len(i: u32) -> usize {
+    pending(i, |f| f.path.len()).unwrap_or(0)
+}
+#[no_mangle]
+pub extern "C" fn cw_save_type(i: u32) -> u32 {
+    pending(i, |f| f.file_type).unwrap_or(0)
+}
+#[no_mangle]
+pub extern "C" fn cw_save_creator(i: u32) -> u32 {
+    pending(i, |f| f.creator).unwrap_or(0)
+}
+#[no_mangle]
+pub extern "C" fn cw_save_flags(i: u32) -> u32 {
+    pending(i, |f| u32::from(f.finder_flags)).unwrap_or(0)
+}
+#[no_mangle]
+pub extern "C" fn cw_save_created(i: u32) -> u32 {
+    pending(i, |f| f.created_date).unwrap_or(0)
+}
+#[no_mangle]
+pub extern "C" fn cw_save_modified(i: u32) -> u32 {
+    pending(i, |f| f.modified_date).unwrap_or(0)
+}
+#[no_mangle]
+pub extern "C" fn cw_save_data_ptr(i: u32) -> *const u8 {
+    pending(i, |f| f.data_fork.as_ptr()).unwrap_or(std::ptr::null())
+}
+#[no_mangle]
+pub extern "C" fn cw_save_data_len(i: u32) -> usize {
+    pending(i, |f| f.data_fork.len()).unwrap_or(0)
+}
+#[no_mangle]
+pub extern "C" fn cw_save_rsrc_ptr(i: u32) -> *const u8 {
+    pending(i, |f| f.resource_fork.as_ptr()).unwrap_or(std::ptr::null())
+}
+#[no_mangle]
+pub extern "C" fn cw_save_rsrc_len(i: u32) -> usize {
+    pending(i, |f| f.resource_fork.len()).unwrap_or(0)
+}
+
+/// The page has stored everything the last scan offered.
+#[no_mangle]
+pub extern "C" fn cw_save_ack() {
+    with_state(|s| {
+        for (snap, fp) in s.pending.drain(..) {
+            s.synced.insert(snap.path, fp);
+        }
+    });
+}
+
+/// Find the first file on the disk with this name (the last path segment)
+/// and keep its full path for `cw_found_ptr`/`cw_found_len`. The page uses
+/// it to learn the game's folder from `Cythera Data` before importing a
+/// character file beside it. Returns 1 when found.
+#[no_mangle]
+pub extern "C" fn cw_vfs_find(name_ptr: *const u8, name_len: usize) -> i32 {
+    let name = unsafe { std::slice::from_raw_parts(name_ptr, name_len) };
+    let name = String::from_utf8_lossy(name).to_ascii_lowercase();
+    with_state(|s| {
+        let hit = s
+            .runner
+            .vfs_file_stats_where(|p| {
+                p.rsplit('/').next().map(str::to_ascii_lowercase).as_deref() == Some(name.as_str())
+            })
+            .into_iter()
+            .next();
+        match hit {
+            Some(stat) => {
+                s.found = stat.path;
+                1
+            }
+            None => {
+                s.found.clear();
+                0
+            }
+        }
+    })
+    .unwrap_or(0)
+}
+#[no_mangle]
+pub extern "C" fn cw_found_ptr() -> *const u8 {
+    with_state(|s| s.found.as_ptr()).unwrap_or(std::ptr::null())
+}
+#[no_mangle]
+pub extern "C" fn cw_found_len() -> usize {
+    with_state(|s| s.found.len()).unwrap_or(0)
 }
 
 #[no_mangle]
