@@ -458,10 +458,13 @@ document.getElementById('play').onclick = () => { unlockAudio(); return boot().t
     // 30 fps beats a guest at 70% duty.
     const budget = wasm.cw_tick() < deadline - 2 ? 26 : 13;
     while (wasm.cw_tick() < deadline && steps < MAX_STEPS && performance.now() - now < budget) {
-      steps += wasm.cw_run(MAX_STEPS - steps, deadline, samples - (steps ? samples : 0));
+      steps += wasm.cw_run(MAX_STEPS - steps, deadline, 0);
       if (!wasm.cw_running()) { say('guest halted'); mode = null; break; }
     }
-    if (!steps) wasm.cw_run(0, deadline, samples); // still mix audio on an idle frame
+    // Mix this frame's audio whether or not the CPU ran: a guest already at
+    // the deadline returns before mixing, which on a phone that keeps up
+    // with the clock was every frame, and the page heard nothing.
+    wasm.cw_mix_audio(samples);
     insWindow += steps;
     if (now - winT > 1000) {
       const rate = insWindow / ((now - winT) / 1000);

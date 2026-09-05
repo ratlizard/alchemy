@@ -460,6 +460,16 @@ pub extern "C" fn cw_run(max_steps: u32, deadline_tick: u32, audio_samples: u32)
     .unwrap_or(0)
 }
 
+/// Mix `audio_samples` of host audio for this frame without running the
+/// CPU. The desktop runner does this whenever its CPU loop finished the
+/// frame without consuming the audio budget — a guest already at the tick
+/// deadline returns from `cw_run` before mixing — and a page that skips it
+/// hears nothing exactly when the device keeps up with the clock.
+#[no_mangle]
+pub extern "C" fn cw_mix_audio(audio_samples: u32) {
+    with_state(|s| s.runner.mix_gui_audio_slice(audio_samples as usize));
+}
+
 /// Headless-style run: ticks advance from the instruction count alone, no
 /// wall clock. This is what makes the browser number comparable with the
 /// native `--headless --max-instructions` figure.
