@@ -84,9 +84,19 @@ pub extern "C" fn cw_error_len() -> usize {
 /// Build the machine, load the archive at `ptr..ptr+len` (ownership passes
 /// here) and run the launch sequence. `mac_epoch_secs` seeds the guest clock:
 /// the runner's own fallback is `SystemTime::now()`, which panics on
-/// `wasm32-unknown-unknown`. Returns 0 on success, -1 with `cw_error_*` set.
+/// `wasm32-unknown-unknown`. `width` and `height` are the guest screen in
+/// pixels; 0 for either takes the fork's default (800x600). Cythera lays its
+/// start screen out for 640x480 and lets the game run at any larger size, so
+/// a phone asks for 640 wide in portrait or 480 high in landscape and fills
+/// the other axis. Returns 0 on success, -1 with `cw_error_*` set.
 #[no_mangle]
-pub extern "C" fn cw_boot(ptr: *mut u8, len: usize, mac_epoch_secs: u32) -> i32 {
+pub extern "C" fn cw_boot(
+    ptr: *mut u8,
+    len: usize,
+    mac_epoch_secs: u32,
+    width: u32,
+    height: u32,
+) -> i32 {
     let bytes = unsafe { Vec::from_raw_parts(ptr, len, len) };
     // `game::new_runner`'s configuration, with the theme named: upstream's
     // library default became its own chrome in 0.33, and this front end shows
@@ -98,6 +108,8 @@ pub extern "C" fn cw_boot(ptr: *mut u8, len: usize, mac_epoch_secs: u32) -> i32 
         max_instructions: game::MAX_INSTRUCTIONS_PER_FRAME,
         addressing_32_bit: true,
         ui_theme: systemless::ui_theme::UiThemeId::ClassicSystem7,
+        screen_size: (width > 0 && height > 0)
+            .then(|| (width.min(4096) as u16, height.min(4096) as u16)),
         ..FixtureRunnerConfig::default()
     };
     let mut runner = FixtureRunner::new(game::RAM_SIZE as usize, config);

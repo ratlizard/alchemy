@@ -9,7 +9,7 @@ const { instance } = await WebAssembly.instantiate(wasmBytes, { env });
 const w = instance.exports; mem = w.memory; w.cw_init();
 const game = readFileSync(process.argv[2]);
 const p = w.cw_alloc(game.length); new Uint8Array(mem.buffer, p, game.length).set(game);
-if (w.cw_boot(p, game.length, Math.floor(Date.now()/1000) + 2082844800) !== 0) process.exit(1);
+if (w.cw_boot(p, game.length, Math.floor(Date.now()/1000) + 2082844800, 0, 0) !== 0) process.exit(1);
 const VBL = 60.15, RATE = 22050;
 let tick0 = w.cw_tick(), audioTotal = 0, steps = 0;
 const t0 = performance.now();

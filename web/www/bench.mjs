@@ -2,7 +2,8 @@
 // the guest headless for N instructions, reporting the executor's rate under
 // V8. Usage: node bench.mjs <archive> [instructions] [frame.ppm]
 import { readFileSync, writeFileSync } from 'node:fs';
-const [,, archivePath, insArg, framePath] = process.argv;
+const [,, archivePath, insArg, framePath, sizeArg] = process.argv;
+const [SW, SH] = (sizeArg || '0x0').split('x').map(Number);
 const target = Number(insArg || 85_000_000);
 const wasmBytes = readFileSync(new URL('./cythera_web.wasm', import.meta.url));
 let mem;
@@ -17,7 +18,7 @@ const game = readFileSync(archivePath);
 const p = w.cw_alloc(game.length);
 new Uint8Array(mem.buffer, p, game.length).set(game);
 const t1 = performance.now();
-const rc = w.cw_boot(p, game.length, Math.floor(Date.now() / 1000) + 2082844800);
+const rc = w.cw_boot(p, game.length, Math.floor(Date.now() / 1000) + 2082844800, SW, SH);
 if (rc !== 0) { console.log('boot failed:', dec.decode(new Uint8Array(mem.buffer, w.cw_error_ptr(), w.cw_error_len()))); process.exit(1); }
 const W = w.cw_width(), H = w.cw_height();
 console.log(`booted in ${(performance.now() - t1).toFixed(0)} ms, screen ${W}x${H}, ${w.cw_instructions_per_tick()} instructions/tick`);

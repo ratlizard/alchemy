@@ -15,8 +15,8 @@ other repositories.
 fetches the game from archive.org's public installer archive (or a `game.sit`
 served beside the page), and runs it with the keyboard, the mouse and sound.
 `web/build.sh` builds it locally; `.github/workflows/pages.yml` builds it from
-the fork's `cythera-detailed` branch and publishes `web/www/` on every push to
-`main`. Measured 5 September 2026: the portable executor under V8 runs the
+the fork's `cythera-detailed` branch and publishes `web/www/` to the
+`gh-pages` branch on every push to `main`; Pages serves that branch. Measured 5 September 2026: the portable executor under V8 runs the
 game's boot at 16.5 M instructions/s against 19 M native. `web/www/bench.mjs`
 and `web/www/play_smoke.mjs` are Node runners for the same module. The touch
 controls are still to come; `mobile/` below is where their design was worked

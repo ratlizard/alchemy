@@ -7,7 +7,7 @@
   #bar { padding: 6px 10px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
   #bar button { font: inherit; }
   #stage { display: flex; justify-content: center; align-items: center; }
-  canvas { image-rendering: pixelated; max-width: 100vw; max-height: calc(100vh - 40px); touch-action: none; background: #000; }
+  canvas { image-rendering: pixelated; width: 100vw; max-height: calc(100vh - 40px); object-fit: contain; touch-action: none; background: #000; }
   #log { white-space: pre-wrap; font: 11px/1.3 ui-monospace, monospace; padding: 4px 10px; max-height: 30vh; overflow: auto; }
 </style>
 <div id="bar">
@@ -63,6 +63,17 @@ document.getElementById('file').addEventListener('change', async e => {
 });
 
 const MAC_EPOCH_OFFSET = 2082844800;
+// Cythera's start screen is laid out for 640x480 and the game itself runs at
+// any larger size, its windows free to move. So: portrait keeps 640 wide and
+// fills the height, landscape keeps 480 high and fills the width, and the
+// canvas then covers the viewport at the device's aspect. ?w=&h= overrides.
+function chooseScreen() {
+  const q = new URLSearchParams(location.search);
+  if (q.get('w') && q.get('h')) return [Math.max(640, +q.get('w')), Math.max(480, +q.get('h'))];
+  const vw = window.innerWidth, vh = Math.max(1, window.innerHeight - 40);
+  if (vh >= vw) return [640, Math.min(2048, Math.max(480, Math.round(640 * vh / vw)))];
+  return [Math.min(2048, Math.max(640, Math.round(480 * vw / vh))), 480];
+}
 let booted = false, W = 0, H = 0, canvas = document.getElementById('screen'), ctx = canvas.getContext('2d');
 async function boot() {
   if (booted) return;
@@ -70,7 +81,8 @@ async function boot() {
   const p = wasm.cw_alloc(bytes.length);
   new Uint8Array(mem.buffer, p, bytes.length).set(bytes);
   const t0 = performance.now();
-  const rc = wasm.cw_boot(p, bytes.length, Math.floor(Date.now() / 1000) + MAC_EPOCH_OFFSET);
+  const [sw, sh] = chooseScreen();
+  const rc = wasm.cw_boot(p, bytes.length, Math.floor(Date.now() / 1000) + MAC_EPOCH_OFFSET, sw, sh);
   if (rc !== 0) throw new Error(dec.decode(new Uint8Array(mem.buffer, wasm.cw_error_ptr(), wasm.cw_error_len())));
   W = wasm.cw_width(); H = wasm.cw_height();
   canvas.width = W; canvas.height = H;

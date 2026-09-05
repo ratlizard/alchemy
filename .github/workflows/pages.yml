@@ -1,20 +1,19 @@
 # Build the browser module from the systemless fork and publish web/www/ to
-# GitHub Pages. The game is not in this repository and is not fetched here:
-# the page fetches it from archive.org when it opens.
+# the gh-pages branch, which GitHub Pages serves (Settings > Pages > Deploy
+# from a branch > gh-pages, root). The game is not in this repository and is
+# not fetched here: the page fetches it from archive.org when it opens.
 name: pages
 on:
   push:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 concurrency:
   group: pages
   cancel-in-progress: true
 jobs:
-  build:
+  build-and-publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,15 +30,13 @@ jobs:
           workspaces: alchemy/web/cythera-web
       - run: cargo build --release --target wasm32-unknown-unknown --manifest-path alchemy/web/cythera-web/Cargo.toml
       - run: cp alchemy/web/cythera-web/target/wasm32-unknown-unknown/release/cythera_web.wasm alchemy/web/www/
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: alchemy/web/www
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: publish web/www to gh-pages
+        working-directory: alchemy/web/www
+        run: |
+          touch .nojekyll
+          git init -q -b gh-pages
+          git -c user.name=e-z-g -c user.email=e-z-g@users.noreply.github.com add -A
+          git -c user.name=e-z-g -c user.email=e-z-g@users.noreply.github.com commit -q -m "site from ${GITHUB_SHA}"
+          git push -qf "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
