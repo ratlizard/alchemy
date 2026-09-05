@@ -2,10 +2,14 @@
 
 Guidance for AI assistants working in this repository.
 
-**You are in `alchemy`: two retired attempts at running *Cythera*, kept whole
-for what they settled.** Nothing here is being developed. Read it, cite it,
-port findings out of it — do not extend it. If a session's goal is to make the
-game run, it belongs in `systemless`, not here.
+**You are in `alchemy`: the proving ground for running *Cythera* off a
+Macintosh.** `web/` is live — the game in a browser on the systemless fork's
+WebAssembly build, published to GitHub Pages from this repository — and is
+where a session about the browser or the phone belongs. `port/` and `mobile/`
+are the two retired attempts, kept whole for what they settled: read them,
+cite them, port findings out of them, do not extend them. Emulator fixes
+still belong in `systemless`, not here; this repository only hosts and drives
+the build.
 
 ## The repositories
 
@@ -16,7 +20,7 @@ assumed:
 | | |
 |---|---|
 | `ratlizard/grimoire` | public, GitHub Pages. The site: browser tools that read and narrowly edit Cythera's files. |
-| **`ratlizard/alchemy`** | **public. This one.** `port/` and `mobile/`, both superseded. |
+| **`ratlizard/alchemy`** | **public. This one.** `web/`, live; `port/` and `mobile/`, superseded. **Pushing `main` deploys `web/www/`.** |
 | `ratlizard/cythera-workbench` | private. The Python tools and the notes of the systemless work. Canonical home of the seven scripts vendored here as `tools/` — see below. |
 | `ratlizard/systemless` | public fork of benletchford/systemless. Where running the game happens now, on branch `cythera-detailed`. |
 | `ratlizard/delvmod` | public fork. The correctness oracle for Cythera's formats; a submodule of `grimoire`, not of this one. |
@@ -24,6 +28,22 @@ assumed:
 
 `reference/` is gitignored and is not in this repository; the usual arrangement
 is a symlink to a checkout of `cythera-reference`. Without it neither tree runs.
+
+## `web/` — the game in the browser
+
+`web/cythera-web` is a `cdylib` over `../../../systemless` (the fork, checked
+out beside this repository) with `default-features = false`, exporting a C ABI
+the page calls directly; `src/lib.rs` documents each export. `web/build.sh`
+builds it — read its comments, they are the two toolchain facts that cost a
+build each. `web/www/index.html` is the page; `bench.mjs` and
+`play_smoke.mjs` run the same module under Node, which is how the executor
+was measured and how a change is checked without a browser. The Pages
+workflow checks the fork out at `cythera-detailed` and builds from that, so a
+fork change reaches the site on the next push here. The game is fetched from
+archive.org at run time and is never in this repository. The workbench's
+`doc/mobile-web-feasibility.md` (private) has the measurements and the list of
+what the page still lacks; the touch shell in `mobile/` is what to port for
+the controls.
 
 ## `port/` — the native PowerPC port
 

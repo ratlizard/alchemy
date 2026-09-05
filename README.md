@@ -1,9 +1,26 @@
 # Alchemy
 
-Two attempts at running *Cythera* (1999) that got somewhere and were then
-superseded. Kept whole, because each settled things the successors rely on.
-Neither is being developed: read them, cite them, take findings out of them.
-`CLAUDE.md` says how they relate to the other repositories.
+The proving ground for running *Cythera* (1999) somewhere other than a
+Macintosh. Three attempts live here. Two got somewhere and were superseded,
+and are kept whole because each settled things the successors rely on. The
+third is live: the game running in a browser on a WebAssembly build of the
+[systemless](https://github.com/ratlizard/systemless) fork, published from
+this repository to GitHub Pages. `CLAUDE.md` says how the three relate to the
+other repositories.
+
+## `web/` — the game in the browser, on systemless
+
+`web/cythera-web` is a small C-ABI binding over the fork, built for
+`wasm32-unknown-unknown` with no wasm-bindgen; `web/www/index.html` loads it,
+fetches the game from archive.org's public installer archive (or a `game.sit`
+served beside the page), and runs it with the keyboard, the mouse and sound.
+`web/build.sh` builds it locally; `.github/workflows/pages.yml` builds it from
+the fork's `cythera-detailed` branch and publishes `web/www/` on every push to
+`main`. Measured 5 September 2026: the portable executor under V8 runs the
+game's boot at 16.5 M instructions/s against 19 M native. `web/www/bench.mjs`
+and `web/www/play_smoke.mjs` are Node runners for the same module. The touch
+controls are still to come; `mobile/` below is where their design was worked
+out.
 
 ## `port/` — a native port, PowerPC slice
 
@@ -26,9 +43,8 @@ embed, with a keystroke-only installer that puts an edited data file into the
 emulated Mac without a pointer. It worked end to end — an edit made in the
 browser was read back off the emulated screen — and it was always a workaround
 for an iframe boundary that the emulator's server sits behind, which is also
-why a phone cannot hand it a file. Superseded by the plan to host systemless's
-own WebAssembly build beside [Grimoire](https://github.com/ratlizard/grimoire)
-and hand it the data directly. `mobile/MOBILE.md` records what was measured
+why a phone cannot hand it a file. Superseded by `web/`, which runs
+systemless's own WebAssembly build and is handed the data directly. `mobile/MOBILE.md` records what was measured
 and what must not be undone by anyone who revives it; the checks in
 `mobile/utilities/` are the ones that guarded it.
 

@@ -1,0 +1,171 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Cythera, systemless, in the browser</title>
+<style>
+  html, body { margin: 0; background: #111; color: #ddd; font: 13px/1.4 system-ui, sans-serif; height: 100%; }
+  #bar { padding: 6px 10px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  #bar button { font: inherit; }
+  #stage { display: flex; justify-content: center; align-items: center; }
+  canvas { image-rendering: pixelated; max-width: 100vw; max-height: calc(100vh - 40px); touch-action: none; background: #000; }
+  #log { white-space: pre-wrap; font: 11px/1.3 ui-monospace, monospace; padding: 4px 10px; max-height: 30vh; overflow: auto; }
+</style>
+<div id="bar">
+  <button id="bench">Benchmark (headless to start screen)</button>
+  <button id="play">Play (real time)</button>
+  <label><input type="file" id="file"> pick a .sit instead of game.sit</label>
+  <span id="stat"></span>
+</div>
+<div id="stage"><canvas id="screen" width="800" height="600"></canvas></div>
+<div id="log"></div>
+<script>
+'use strict';
+const logEl = document.getElementById('log'), statEl = document.getElementById('stat');
+function say(s) { logEl.textContent += s + '\n'; logEl.scrollTop = logEl.scrollHeight; console.log(s); }
+const dec = new TextDecoder();
+let wasm, mem;
+const env = { cw_log(p, n) { say(dec.decode(new Uint8Array(mem.buffer, p, n))); } };
+
+async function loadWasm() {
+  const t0 = performance.now();
+  const r = await WebAssembly.instantiateStreaming(fetch('cythera_web.wasm'), { env });
+  wasm = r.instance.exports; mem = wasm.memory;
+  wasm.cw_init();
+  say(`wasm loaded in ${(performance.now() - t0).toFixed(0)} ms`);
+}
+// The game is not in this repository. A game.sit served beside the page wins
+// (a local checkout with a symlink to the installed-folder archive); otherwise
+// archive.org's "Cythera installers" item, the 28 MB StuffIt archive holding
+// the 1.0.1-1.0.4 installers, through the /cors/ path that sends the CORS
+// header. systemless expands the 1.0.4 Installer VISE payload itself.
+const GAME_SOURCES = [
+  'game.sit',
+  'https://archive.org/cors/cythera-installers/Cythera%20installers.sit',
+];
+let gameBytes = null;
+async function getGame() {
+  if (gameBytes) return gameBytes;
+  for (const url of GAME_SOURCES) {
+    const t0 = performance.now();
+    let res;
+    try { res = await fetch(url); } catch (e) { say(`${url}: ${e.message}`); continue; }
+    if (!res.ok) { say(`${url}: ${res.status}`); continue; }
+    gameBytes = new Uint8Array(await res.arrayBuffer());
+    say(`game fetched from ${url}: ${gameBytes.length} bytes in ${(performance.now() - t0).toFixed(0)} ms`);
+    return gameBytes;
+  }
+  throw new Error('no game source answered; pick a .sit with the file control');
+}
+document.getElementById('file').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  gameBytes = new Uint8Array(await f.arrayBuffer());
+  say(`picked ${f.name}: ${gameBytes.length} bytes`);
+});
+
+const MAC_EPOCH_OFFSET = 2082844800;
+let booted = false, W = 0, H = 0, canvas = document.getElementById('screen'), ctx = canvas.getContext('2d');
+async function boot() {
+  if (booted) return;
+  const bytes = await getGame();
+  const p = wasm.cw_alloc(bytes.length);
+  new Uint8Array(mem.buffer, p, bytes.length).set(bytes);
+  const t0 = performance.now();
+  const rc = wasm.cw_boot(p, bytes.length, Math.floor(Date.now() / 1000) + MAC_EPOCH_OFFSET);
+  if (rc !== 0) throw new Error(dec.decode(new Uint8Array(mem.buffer, wasm.cw_error_ptr(), wasm.cw_error_len())));
+  W = wasm.cw_width(); H = wasm.cw_height();
+  canvas.width = W; canvas.height = H;
+  say(`booted in ${(performance.now() - t0).toFixed(0)} ms, screen ${W}x${H}, ${wasm.cw_instructions_per_tick()} instructions/tick`);
+  booted = true;
+}
+function present() {
+  const p = wasm.cw_render();
+  const px = new Uint8ClampedArray(mem.buffer, p, W * H * 4);
+  ctx.putImageData(new ImageData(px, W, H), 0, 0);
+}
+
+// --- benchmark: headless pacing, comparable with the native --max-instructions figure
+let mode = null;
+document.getElementById('bench').onclick = async () => {
+  await boot(); mode = 'bench';
+  const target = 85_000_000, chunk = 1_000_000;
+  let done = 0, t0 = performance.now(), lastReport = t0;
+  function step() {
+    if (mode !== 'bench') return;
+    const t = performance.now();
+    while (done < target && performance.now() - t < 40) {
+      done += wasm.cw_run_headless(chunk);
+      if (!wasm.cw_running()) { say('guest halted'); mode = null; break; }
+    }
+    present();
+    const now = performance.now(), secs = (now - t0) / 1000;
+    if (now - lastReport > 1000 || done >= target) {
+      statEl.textContent = `${(done / 1e6).toFixed(0)}M instructions, ${secs.toFixed(1)} s, ${(done / secs / 1e6).toFixed(2)} M/s, tick ${wasm.cw_tick()}`;
+      lastReport = now;
+    }
+    if (done >= target) { say(`benchmark: ${done} instructions in ${secs.toFixed(2)} s = ${(done / secs / 1e6).toFixed(2)} M instructions/s`); mode = null; return; }
+    requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+};
+
+// --- play: wall-clock pacing, like the desktop runner
+const VBL_HZ = 60.15, RATE = 22050, MAX_STEPS = 2_000_000;
+let audioCtx = null, nextAudioTime = 0;
+function pushAudio() {
+  const n = wasm.cw_audio_len(); if (!n || !audioCtx) return;
+  const src = new Uint8Array(mem.buffer, wasm.cw_audio_drain(), n);
+  const buf = audioCtx.createBuffer(1, n, RATE), ch = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) ch[i] = (src[i] - 128) / 128;
+  const node = audioCtx.createBufferSource(); node.buffer = buf; node.connect(audioCtx.destination);
+  const t = Math.max(audioCtx.currentTime + 0.02, nextAudioTime);
+  node.start(t); nextAudioTime = t + n / RATE;
+}
+document.getElementById('play').onclick = async () => {
+  await boot(); mode = 'play';
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  audioCtx.resume();
+  const startTick = wasm.cw_tick(), t0 = performance.now();
+  let audioRemainder = 0, lastT = t0, insWindow = 0, winT = t0;
+  function frame() {
+    if (mode !== 'play') return;
+    const now = performance.now();
+    const deadline = startTick + Math.floor((now - t0) / 1000 * VBL_HZ);
+    const dt = Math.min(now - lastT, 100); lastT = now;
+    const want = dt / 1000 * RATE + audioRemainder, samples = Math.floor(want); audioRemainder = want - samples;
+    let steps = 0;
+    while (wasm.cw_tick() < deadline && steps < MAX_STEPS && performance.now() - now < 12) {
+      steps += wasm.cw_run(MAX_STEPS - steps, deadline, samples - (steps ? samples : 0));
+      if (!wasm.cw_running()) { say('guest halted'); mode = null; break; }
+    }
+    if (!steps) wasm.cw_run(0, deadline, samples); // still mix audio on an idle frame
+    insWindow += steps;
+    if (now - winT > 1000) { statEl.textContent = `${(insWindow / ((now - winT) / 1000) / 1e6).toFixed(2)} M/s, tick ${wasm.cw_tick()} vs ${deadline}`; insWindow = 0; winT = now; }
+    pushAudio(); present();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+};
+
+// --- input
+function guestPoint(e) {
+  const r = canvas.getBoundingClientRect();
+  return [Math.round((e.clientY - r.top) * H / r.height), Math.round((e.clientX - r.left) * W / r.width)];
+}
+canvas.addEventListener('pointermove', e => { if (!booted) return; const [v, h] = guestPoint(e); wasm.cw_mouse_move(v, h); });
+canvas.addEventListener('pointerdown', e => { if (!booted) return; e.preventDefault(); canvas.setPointerCapture(e.pointerId); const [v, h] = guestPoint(e); wasm.cw_mouse_move(v, h); wasm.cw_mouse_down(v, h); });
+canvas.addEventListener('pointerup', e => { if (!booted) return; const [v, h] = guestPoint(e); wasm.cw_mouse_up(v, h); });
+canvas.addEventListener('pointercancel', e => { if (!booted) return; const [v, h] = guestPoint(e); wasm.cw_mouse_up(v, h); });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// KeyboardEvent.code -> Mac virtual key code, the desktop runner's table.
+const MAC_KEY = { KeyA:0x00,KeyS:0x01,KeyD:0x02,KeyF:0x03,KeyH:0x04,KeyG:0x05,KeyZ:0x06,KeyX:0x07,KeyC:0x08,KeyV:0x09,KeyB:0x0B,KeyQ:0x0C,KeyW:0x0D,KeyE:0x0E,KeyR:0x0F,KeyY:0x10,KeyT:0x11,Digit1:0x12,Digit2:0x13,Digit3:0x14,Digit4:0x15,Digit6:0x16,Digit5:0x17,Equal:0x18,Digit9:0x19,Digit7:0x1A,Minus:0x1B,Digit8:0x1C,Digit0:0x1D,BracketRight:0x1E,KeyO:0x1F,KeyU:0x20,BracketLeft:0x21,KeyI:0x22,KeyP:0x23,Enter:0x24,KeyL:0x25,KeyJ:0x26,Quote:0x27,KeyK:0x28,Semicolon:0x29,Backslash:0x2A,Comma:0x2B,Slash:0x2C,KeyN:0x2D,KeyM:0x2E,Period:0x2F,Tab:0x30,Space:0x31,Backquote:0x32,Backspace:0x33,Escape:0x35,MetaLeft:0x37,MetaRight:0x37,ShiftLeft:0x38,CapsLock:0x39,AltLeft:0x3A,ControlLeft:0x3B,ShiftRight:0x3C,AltRight:0x3D,ControlRight:0x3E,NumpadDecimal:0x41,NumpadMultiply:0x43,NumpadAdd:0x45,NumLock:0x47,NumpadDivide:0x4B,NumpadEnter:0x4C,NumpadSubtract:0x4E,NumpadEqual:0x51,Numpad0:0x52,Numpad1:0x53,Numpad2:0x54,Numpad3:0x55,Numpad4:0x56,Numpad5:0x57,Numpad6:0x58,Numpad7:0x59,Numpad8:0x5B,Numpad9:0x5C,ArrowLeft:0x7B,ArrowRight:0x7C,ArrowDown:0x7D,ArrowUp:0x7E,F1:0x7A,F2:0x78,F3:0x63,F4:0x76,F5:0x60 };
+const MAC_CHAR = { Enter:13,NumpadEnter:3,Tab:9,Space:32,Backspace:8,Escape:27,ArrowLeft:28,ArrowRight:29,ArrowUp:30,ArrowDown:31 };
+function macChar(e) {
+  if (e.key.length === 1 && e.key.charCodeAt(0) < 128) return e.key.charCodeAt(0);
+  return MAC_CHAR[e.code] || 0;
+}
+window.addEventListener('keydown', e => { if (!booted || e.target.tagName === 'INPUT') return; const k = MAC_KEY[e.code]; if (k === undefined) return; e.preventDefault(); if (!e.repeat) wasm.cw_key_down(k, macChar(e)); });
+window.addEventListener('keyup', e => { if (!booted) return; const k = MAC_KEY[e.code]; if (k === undefined) return; e.preventDefault(); wasm.cw_key_up(k, macChar(e)); });
+
+loadWasm().catch(e => say('load failed: ' + e));
+</script>

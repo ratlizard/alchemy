@@ -1,0 +1,21 @@
+[package]
+name = "cythera-web"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# The fork, browser configuration: no winit/softbuffer/cpal, no Cranelift JIT.
+# The m68k crate's portable trace executor runs the guest, which is exactly
+# how upstream's own browser builds run.
+systemless = { path = "../../../systemless", default-features = false }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
