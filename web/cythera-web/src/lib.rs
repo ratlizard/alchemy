@@ -9,7 +9,7 @@ use std::cell::RefCell;
 
 use systemless::display::{self, DisplayGamma};
 use systemless::game;
-use systemless::runner::FixtureRunner;
+use systemless::runner::{FixtureRunner, FixtureRunnerConfig};
 
 #[link(wasm_import_module = "env")]
 extern "C" {
@@ -88,10 +88,19 @@ pub extern "C" fn cw_error_len() -> usize {
 #[no_mangle]
 pub extern "C" fn cw_boot(ptr: *mut u8, len: usize, mac_epoch_secs: u32) -> i32 {
     let bytes = unsafe { Vec::from_raw_parts(ptr, len, len) };
-    let mut runner = game::new_runner();
-    // Upstream's library default is its own chrome; this front end shows the
-    // classic look every Cythera reference capture was taken against.
-    runner.set_ui_theme(systemless::ui_theme::UiThemeId::ClassicSystem7);
+    // `game::new_runner`'s configuration, with the theme named: upstream's
+    // library default became its own chrome in 0.33, and this front end shows
+    // the classic look every Cythera reference capture was taken against.
+    // Set through the config rather than a setter so the crate builds against
+    // both the 0.30 line and the 0.34 rebase.
+    let config = FixtureRunnerConfig {
+        load_address: 0x10000,
+        max_instructions: game::MAX_INSTRUCTIONS_PER_FRAME,
+        addressing_32_bit: true,
+        ui_theme: systemless::ui_theme::UiThemeId::ClassicSystem7,
+        ..FixtureRunnerConfig::default()
+    };
+    let mut runner = FixtureRunner::new(game::RAM_SIZE as usize, config);
     runner.set_app_start_time(mac_epoch_secs);
     runner.set_instructions_per_tick(
         systemless::runner::default_realtime_instructions_per_tick(false),
