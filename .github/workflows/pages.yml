@@ -34,6 +34,7 @@ jobs:
         working-directory: alchemy/web/www
         run: |
           touch .nojekyll
+          sed -i "s/__BUILD__/${GITHUB_SHA:0:8}/" index.html
           git init -q -b gh-pages
           git -c user.name=e-z-g -c user.email=e-z-g@users.noreply.github.com add -A
           git -c user.name=e-z-g -c user.email=e-z-g@users.noreply.github.com commit -q -m "site from ${GITHUB_SHA}"

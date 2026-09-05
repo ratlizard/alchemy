@@ -478,6 +478,15 @@ pub extern "C" fn cw_tick() -> u32 {
     with_state(|s| s.runner.guest_tick()).unwrap_or(0)
 }
 
+/// Set the guest cycles per VBL tick. The default is the 25 MHz profile's;
+/// a host that cannot deliver that many instructions per real second lowers
+/// it so that ticks stay on the wall clock and the guest runs like a slower
+/// Macintosh instead of falling behind the clock.
+#[no_mangle]
+pub extern "C" fn cw_set_instructions_per_tick(n: u32) {
+    with_state(|s| s.runner.set_instructions_per_tick(n.clamp(50_000, 2_000_000)));
+}
+
 #[no_mangle]
 pub extern "C" fn cw_instructions_per_tick() -> u32 {
     with_state(|s| s.runner.instructions_per_tick()).unwrap_or(0)

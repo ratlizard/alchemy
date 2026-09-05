@@ -90,6 +90,10 @@
 <div id="log"></div>
 <script>
 'use strict';
+// KeyboardEvent.code -> Mac virtual key code, the desktop runner's table.
+const MAC_KEY = { KeyA:0x00,KeyS:0x01,KeyD:0x02,KeyF:0x03,KeyH:0x04,KeyG:0x05,KeyZ:0x06,KeyX:0x07,KeyC:0x08,KeyV:0x09,KeyB:0x0B,KeyQ:0x0C,KeyW:0x0D,KeyE:0x0E,KeyR:0x0F,KeyY:0x10,KeyT:0x11,Digit1:0x12,Digit2:0x13,Digit3:0x14,Digit4:0x15,Digit6:0x16,Digit5:0x17,Equal:0x18,Digit9:0x19,Digit7:0x1A,Minus:0x1B,Digit8:0x1C,Digit0:0x1D,BracketRight:0x1E,KeyO:0x1F,KeyU:0x20,BracketLeft:0x21,KeyI:0x22,KeyP:0x23,Enter:0x24,KeyL:0x25,KeyJ:0x26,Quote:0x27,KeyK:0x28,Semicolon:0x29,Backslash:0x2A,Comma:0x2B,Slash:0x2C,KeyN:0x2D,KeyM:0x2E,Period:0x2F,Tab:0x30,Space:0x31,Backquote:0x32,Backspace:0x33,Escape:0x35,MetaLeft:0x37,MetaRight:0x37,ShiftLeft:0x38,CapsLock:0x39,AltLeft:0x3A,ControlLeft:0x3B,ShiftRight:0x3C,AltRight:0x3D,ControlRight:0x3E,NumpadDecimal:0x41,NumpadMultiply:0x43,NumpadAdd:0x45,NumLock:0x47,NumpadDivide:0x4B,NumpadEnter:0x4C,NumpadSubtract:0x4E,NumpadEqual:0x51,Numpad0:0x52,Numpad1:0x53,Numpad2:0x54,Numpad3:0x55,Numpad4:0x56,Numpad5:0x57,Numpad6:0x58,Numpad7:0x59,Numpad8:0x5B,Numpad9:0x5C,ArrowLeft:0x7B,ArrowRight:0x7C,ArrowDown:0x7D,ArrowUp:0x7E,F1:0x7A,F2:0x78,F3:0x63,F4:0x76,F5:0x60 };
+const MAC_CHAR = { Enter:13,NumpadEnter:3,Tab:9,Space:32,Backspace:8,Escape:27,ArrowLeft:28,ArrowRight:29,ArrowUp:30,ArrowDown:31 };
+
 const logEl = document.getElementById('log'), statEl = document.getElementById('stat');
 function say(s) { logEl.textContent += s + '\n'; logEl.scrollTop = logEl.scrollHeight; console.log(s); }
 const dec = new TextDecoder();
@@ -98,15 +102,20 @@ const env = { cw_log(p, n) { say(dec.decode(new Uint8Array(mem.buffer, p, n))); 
 window.addEventListener('error', e => say('error: ' + (e.message || e)));
 window.addEventListener('unhandledrejection', e => say('error: ' + (e.reason && e.reason.stack || e.reason)));
 
+// The workflow replaces __BUILD__ with the commit, so a cached module can
+// never be served with a newer page: the mismatch showed up as
+// "cw_menus is not a function" on a phone ten minutes after a deploy.
+const BUILD = '__BUILD__';
+const WASM_URL = 'cythera_web.wasm' + (BUILD.startsWith('__') ? '' : '?v=' + BUILD);
 async function loadWasm() {
   const t0 = performance.now();
   let r;
   try {
-    r = await WebAssembly.instantiateStreaming(fetch('cythera_web.wasm'), { env });
+    r = await WebAssembly.instantiateStreaming(fetch(WASM_URL), { env });
   } catch (e) {
     // Safari without a wasm MIME type, or an old cache: fall back to bytes.
     say(`streaming instantiate failed (${e.message}); loading as bytes`);
-    const bytes = await (await fetch('cythera_web.wasm')).arrayBuffer();
+    const bytes = await (await fetch(WASM_URL)).arrayBuffer();
     r = await WebAssembly.instantiate(bytes, { env });
   }
   wasm = r.instance.exports; mem = wasm.memory;
@@ -395,10 +404,14 @@ function unlockAudio() {
   }
   if (audioCtx.state !== 'running') audioCtx.resume().catch(() => {});
 }
+document.addEventListener('visibilitychange', () => { if (!document.hidden && audioCtx) audioCtx.resume().catch(() => {}); });
+function audioReport() { if (audioCtx) say(`audio: context ${audioCtx.state} at ${audioCtx.sampleRate} Hz, ${audioPushed} samples pushed, ${audioLoud} loud checks`); }
 canvas.addEventListener('pointerdown', unlockAudio);
+let audioPushed = 0, audioLoud = 0;
 function pushAudio() {
   const n = wasm.cw_audio_len(); if (!n || !audioCtx) return;
   const src = new Uint8Array(mem.buffer, wasm.cw_audio_drain(), n);
+  audioPushed += n; for (let i = 0; i < n; i += 64) if (Math.abs(src[i] - 128) > 4) audioLoud++;
   const buf = audioCtx.createBuffer(1, n, RATE), ch = buf.getChannelData(0);
   for (let i = 0; i < n; i++) ch[i] = (src[i] - 128) / 128;
   const node = audioCtx.createBufferSource(); node.buffer = buf; node.connect(audioCtx.destination);
@@ -426,7 +439,14 @@ function fastForward() {
 document.getElementById('play').onclick = () => { unlockAudio(); return boot().then(fastForward).then(() => {
   mode = 'play'; document.body.classList.add('playing');
   const startTick = wasm.cw_tick(), t0 = performance.now();
-  let audioRemainder = 0, lastT = t0, insWindow = 0, winT = t0;
+  let audioRemainder = 0, lastT = t0, insWindow = 0, winT = t0, reports = 0;
+  // Cycles per tick follow what this device delivers: the runner's default
+  // is the 25 MHz profile, and a phone that manages 21 M instructions a
+  // second would otherwise fall further behind the clock every second.
+  // Measured over a second, applied at 90%, never above the profile.
+  const IPT_DEFAULT = wasm.cw_instructions_per_tick();
+  let ipt = IPT_DEFAULT;
+  say(`play: ${IPT_DEFAULT} instructions/tick`);
   function frame() {
     if (mode !== 'play') return;
     const now = performance.now();
@@ -434,13 +454,27 @@ document.getElementById('play').onclick = () => { unlockAudio(); return boot().t
     const dt = Math.min(now - lastT, 100); lastT = now;
     const want = dt / 1000 * RATE + audioRemainder, samples = Math.floor(want); audioRemainder = want - samples;
     let steps = 0;
-    while (wasm.cw_tick() < deadline && steps < MAX_STEPS && performance.now() - now < 12) {
+    // Spend most of the frame on the guest when it is behind; rendering at
+    // 30 fps beats a guest at 70% duty.
+    const budget = wasm.cw_tick() < deadline - 2 ? 26 : 13;
+    while (wasm.cw_tick() < deadline && steps < MAX_STEPS && performance.now() - now < budget) {
       steps += wasm.cw_run(MAX_STEPS - steps, deadline, samples - (steps ? samples : 0));
       if (!wasm.cw_running()) { say('guest halted'); mode = null; break; }
     }
     if (!steps) wasm.cw_run(0, deadline, samples); // still mix audio on an idle frame
     insWindow += steps;
-    if (now - winT > 1000) { statEl.textContent = `${W}x${H}, ${(insWindow / ((now - winT) / 1000) / 1e6).toFixed(1)} M/s, ${wasm.cw_tick() - deadline} ticks`; insWindow = 0; winT = now; }
+    if (now - winT > 1000) {
+      const rate = insWindow / ((now - winT) / 1000);
+      if (wasm.cw_tick() < deadline - 2) {
+        ipt = Math.max(100_000, Math.min(IPT_DEFAULT, Math.round(rate * 0.9 / VBL_HZ)));
+        wasm.cw_set_instructions_per_tick(ipt);
+      } else if (ipt < IPT_DEFAULT) {
+        ipt = Math.min(IPT_DEFAULT, Math.round(ipt * 1.05)); wasm.cw_set_instructions_per_tick(ipt);
+      }
+      statEl.textContent = `${W}x${H}, ${(rate / 1e6).toFixed(1)} M/s, ${wasm.cw_tick() - deadline} ticks, ${(ipt / 1000).toFixed(0)}k/tick`;
+      insWindow = 0; winT = now;
+      if (++reports === 5 || reports === 30) audioReport();
+    }
     pushAudio(); present();
     requestAnimationFrame(frame);
   }
@@ -567,9 +601,6 @@ document.getElementById('kbtoggle').addEventListener('pointerdown', e => {
   if (document.activeElement === kb) kb.blur(); else kb.focus();
 });
 
-// KeyboardEvent.code -> Mac virtual key code, the desktop runner's table.
-const MAC_KEY = { KeyA:0x00,KeyS:0x01,KeyD:0x02,KeyF:0x03,KeyH:0x04,KeyG:0x05,KeyZ:0x06,KeyX:0x07,KeyC:0x08,KeyV:0x09,KeyB:0x0B,KeyQ:0x0C,KeyW:0x0D,KeyE:0x0E,KeyR:0x0F,KeyY:0x10,KeyT:0x11,Digit1:0x12,Digit2:0x13,Digit3:0x14,Digit4:0x15,Digit6:0x16,Digit5:0x17,Equal:0x18,Digit9:0x19,Digit7:0x1A,Minus:0x1B,Digit8:0x1C,Digit0:0x1D,BracketRight:0x1E,KeyO:0x1F,KeyU:0x20,BracketLeft:0x21,KeyI:0x22,KeyP:0x23,Enter:0x24,KeyL:0x25,KeyJ:0x26,Quote:0x27,KeyK:0x28,Semicolon:0x29,Backslash:0x2A,Comma:0x2B,Slash:0x2C,KeyN:0x2D,KeyM:0x2E,Period:0x2F,Tab:0x30,Space:0x31,Backquote:0x32,Backspace:0x33,Escape:0x35,MetaLeft:0x37,MetaRight:0x37,ShiftLeft:0x38,CapsLock:0x39,AltLeft:0x3A,ControlLeft:0x3B,ShiftRight:0x3C,AltRight:0x3D,ControlRight:0x3E,NumpadDecimal:0x41,NumpadMultiply:0x43,NumpadAdd:0x45,NumLock:0x47,NumpadDivide:0x4B,NumpadEnter:0x4C,NumpadSubtract:0x4E,NumpadEqual:0x51,Numpad0:0x52,Numpad1:0x53,Numpad2:0x54,Numpad3:0x55,Numpad4:0x56,Numpad5:0x57,Numpad6:0x58,Numpad7:0x59,Numpad8:0x5B,Numpad9:0x5C,ArrowLeft:0x7B,ArrowRight:0x7C,ArrowDown:0x7D,ArrowUp:0x7E,F1:0x7A,F2:0x78,F3:0x63,F4:0x76,F5:0x60 };
-const MAC_CHAR = { Enter:13,NumpadEnter:3,Tab:9,Space:32,Backspace:8,Escape:27,ArrowLeft:28,ArrowRight:29,ArrowUp:30,ArrowDown:31 };
 function macChar(e) {
   if (e.key.length === 1 && e.key.charCodeAt(0) < 128) return e.key.charCodeAt(0);
   return MAC_CHAR[e.code] || 0;
