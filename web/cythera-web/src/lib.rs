@@ -49,6 +49,8 @@ struct State {
     pending: Vec<(VfsFileSnapshot, Fingerprint)>,
     /// The full VFS path answered by `cw_vfs_find`.
     found: String,
+    /// The JSON answered by `cw_menus`.
+    menus: String,
 }
 
 thread_local! {
@@ -183,6 +185,7 @@ pub extern "C" fn cw_load(
             synced: HashMap::new(),
             pending: Vec::new(),
             found: String::new(),
+            menus: String::new(),
         })
     });
     0
@@ -572,4 +575,86 @@ pub extern "C" fn cw_audio_drain() -> *const u8 {
 #[no_mangle]
 pub extern "C" fn cw_audio_len() -> usize {
     with_state(|s| s.audio.len()).unwrap_or(0)
+}
+
+// ---------------------------------------------------------------- menus
+//
+// Cythera hides its menu bar and reveals it when the pointer reaches the top
+// of the screen, which a finger cannot do. The runner projects the live Menu
+// Manager state and routes a host-chosen item back through the guest's own
+// MenuSelect path, so the page can draw the menus itself and Save, Save As
+// and Quit need no key chord. Hand-rolled JSON; the shape is small.
+
+fn json_str(out: &mut String, text: &str) {
+    out.push('"');
+    for ch in text.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+}
+
+/// Snapshot the guest's menus as JSON: `[{id, title, enabled, inBar, items:
+/// [{n, text, enabled, checked, key, separator, submenu}]}]`. The text lives
+/// until the next call into the module.
+#[no_mangle]
+pub extern "C" fn cw_menus() -> *const u8 {
+    with_state(|s| {
+        let snapshot = s.runner.guest_menu_snapshot();
+        let mut out = String::from("[");
+        for (mi, menu) in snapshot.menus.iter().enumerate() {
+            if mi > 0 {
+                out.push(',');
+            }
+            out.push_str(&format!("{{\"id\":{},\"title\":", menu.id));
+            json_str(&mut out, &menu.title);
+            out.push_str(&format!(
+                ",\"enabled\":{},\"inBar\":{},\"items\":[",
+                menu.enabled,
+                menu.visible_in_menu_bar && !menu.hierarchical
+            ));
+            for (ii, item) in menu.items.iter().enumerate() {
+                if ii > 0 {
+                    out.push(',');
+                }
+                out.push_str(&format!("{{\"n\":{},\"text\":", item.number));
+                json_str(&mut out, &item.text);
+                out.push_str(&format!(
+                    ",\"enabled\":{},\"checked\":{},\"separator\":{},\"submenu\":{},\"key\":",
+                    item.enabled,
+                    item.checked,
+                    item.separator,
+                    item.submenu_id.map_or("null".to_string(), |id| id.to_string())
+                ));
+                match item.key_equivalent {
+                    Some(k) => json_str(&mut out, &k.to_string()),
+                    None => out.push_str("null"),
+                }
+                out.push('}');
+            }
+            out.push_str("]}");
+        }
+        out.push(']');
+        s.menus = out;
+        s.menus.as_ptr()
+    })
+    .unwrap_or(std::ptr::null())
+}
+
+#[no_mangle]
+pub extern "C" fn cw_menus_len() -> usize {
+    with_state(|s| s.menus.len()).unwrap_or(0)
+}
+
+/// Choose a menu item as the guest would from its menu bar. Returns 1 when
+/// the item was present, enabled and selectable.
+#[no_mangle]
+pub extern "C" fn cw_menu_select(menu_id: i32, item: i32) -> i32 {
+    with_state(|s| i32::from(s.runner.select_guest_menu_item(menu_id as i16, item as i16)))
+        .unwrap_or(0)
 }

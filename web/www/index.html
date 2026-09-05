@@ -31,6 +31,15 @@
   #act { right: 8px; bottom: 8px; }
   #kb { position: absolute; left: -1000px; top: 0; width: 10px; height: 10px; opacity: 0; }
   body.touch .desktop-only { display: none; }
+  #menupanel { position: fixed; left: 50%; top: 48px; transform: translateX(-50%); width: min(720px, 96vw); max-height: calc(100vh - 60px); overflow: auto; background: #1c1c1c; border: 1px solid #444; border-radius: 10px; padding: 10px; z-index: 5; }
+  #menupanel .row { margin: 6px 0; } .dim { color: #999; font-size: 12px; }
+  #menus { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+  .menu { min-width: 150px; background: #262626; border-radius: 8px; padding: 6px; }
+  .menu h4 { margin: 0 0 6px; font-size: 13px; }
+  .menu button { display: block; width: 100%; text-align: left; margin: 2px 0; font: inherit; }
+  .menu button:disabled { opacity: .45; }
+  .menu hr { border: 0; border-top: 1px solid #444; margin: 4px 0; }
+  .menu .key { float: right; color: #999; }
   #savespanel { position: fixed; left: 50%; top: 48px; transform: translateX(-50%); width: min(640px, 96vw); max-height: calc(100vh - 60px); overflow: auto; background: #1c1c1c; border: 1px solid #444; border-radius: 10px; padding: 10px; z-index: 5; }
   #savespanel .row { margin: 6px 0; }
   #savestable { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -41,10 +50,15 @@
 <div id="bar">
   <button id="play" disabled>Play</button>
   <button id="saves" disabled>Saves</button>
+  <button id="menubtn" disabled>Menu</button>
   <button id="logbtn">Log</button>
   <button id="bench" disabled class="desktop-only">Benchmark</button>
   <label class="desktop-only"><input type="file" id="file"> pick a .sit</label>
   <span id="stat">loading module…</span>
+</div>
+<div id="menupanel" hidden>
+  <div class="row"><b>Menus</b> <span class="dim">the game's own menu bar, which a finger cannot reach at the top of the screen</span> <button id="menuclose">Close</button></div>
+  <div id="menus"></div>
 </div>
 <div id="savespanel" hidden>
   <div class="row"><b>Saves</b> <span id="savesnote"></span> <button id="savesclose">Close</button></div>
@@ -99,7 +113,7 @@ async function loadWasm() {
   wasm.cw_init();
   say(`wasm loaded in ${(performance.now() - t0).toFixed(0)} ms`);
   statEl.textContent = '';
-  for (const id of ['play', 'saves', 'bench']) document.getElementById(id).disabled = false;
+  for (const id of ['play', 'saves', 'bench', 'menubtn']) document.getElementById(id).disabled = false;
 }
 const wasmReady = loadWasm().catch(e => { say('module failed to load: ' + e); statEl.textContent = 'module failed to load'; throw e; });
 // The game is not in this repository. A game.sit served beside the page wins
@@ -293,6 +307,33 @@ async function renderSaves() {
     }
   };
 }
+// --- the game's menus, drawn by the page
+const menuPanel = document.getElementById('menupanel');
+function renderMenus() {
+  const host = document.getElementById('menus');
+  if (!booted) { host.innerHTML = '<span class="dim">start the game first</span>'; return; }
+  const menus = JSON.parse(dec.decode(new Uint8Array(mem.buffer, wasm.cw_menus(), wasm.cw_menus_len())));
+  host.innerHTML = '';
+  for (const menu of menus.filter(m => m.inBar)) {
+    const box = document.createElement('div'); box.className = 'menu';
+    box.innerHTML = `<h4>${menu.title.replace(/</g, '&lt;') || '(Apple)'}</h4>`;
+    for (const item of menu.items) {
+      if (item.separator) { box.appendChild(document.createElement('hr')); continue; }
+      const b = document.createElement('button');
+      b.innerHTML = `${item.checked ? '&#10003; ' : ''}${item.text.replace(/</g, '&lt;')}${item.key ? `<span class="key">&#8984;${item.key}</span>` : ''}`;
+      b.disabled = !menu.enabled || !item.enabled || item.submenu !== null;
+      b.onclick = () => {
+        const ok = wasm.cw_menu_select(menu.id, item.n);
+        say(`menu: ${menu.title} › ${item.text}: ${ok ? 'chosen' : 'not selectable now'}`);
+        menuPanel.hidden = true;
+      };
+      box.appendChild(b);
+    }
+    host.appendChild(box);
+  }
+}
+document.getElementById('menubtn').onclick = () => { menuPanel.hidden = !menuPanel.hidden; if (!menuPanel.hidden) renderMenus(); };
+document.getElementById('menuclose').onclick = () => menuPanel.hidden = true;
 document.getElementById('logbtn').onclick = () => document.body.classList.toggle('showlog');
 document.getElementById('saves').onclick = () => { panel.hidden = !panel.hidden; if (!panel.hidden) renderSaves(); };
 document.getElementById('savesclose').onclick = () => panel.hidden = true;
