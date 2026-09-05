@@ -120,7 +120,7 @@ async function loadWasm() {
   }
   wasm = r.instance.exports; mem = wasm.memory;
   wasm.cw_init();
-  say(`wasm loaded in ${(performance.now() - t0).toFixed(0)} ms`);
+  say(`wasm loaded in ${(performance.now() - t0).toFixed(0)} ms, page build ${BUILD}`);
   statEl.textContent = '';
   for (const id of ['play', 'saves', 'bench', 'menubtn']) document.getElementById(id).disabled = false;
 }
@@ -405,7 +405,14 @@ function unlockAudio() {
   if (audioCtx.state !== 'running') audioCtx.resume().catch(() => {});
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && audioCtx) audioCtx.resume().catch(() => {}); });
-function audioReport() { if (audioCtx) say(`audio: context ${audioCtx.state} at ${audioCtx.sampleRate} Hz, ${audioPushed} samples pushed, ${audioLoud} loud checks`); }
+function audioReport() {
+  if (!audioCtx) return;
+  say(`audio: context ${audioCtx.state} at ${audioCtx.sampleRate} Hz, ${audioPushed} samples pushed, ${audioLoud} loud checks`);
+  // The runner hands the page samples only while a sound channel is open;
+  // silence between sounds is not mixed. Zero pushed after seconds of play
+  // means the game itself is playing nothing.
+  if (audioPushed === 0) say('audio: the game has produced no sound yet — if this persists, open Menu › File › Preferences and check the Music slider and its Mute box');
+}
 canvas.addEventListener('pointerdown', unlockAudio);
 let audioPushed = 0, audioLoud = 0;
 function pushAudio() {
