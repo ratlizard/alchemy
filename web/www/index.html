@@ -10,6 +10,7 @@
   canvas { image-rendering: pixelated; width: 100vw; max-height: calc(100vh - 40px); object-fit: contain; touch-action: none; background: #000; }
   #log { white-space: pre-wrap; font: 11px/1.3 ui-monospace, monospace; padding: 4px 10px; max-height: 30vh; overflow: auto; }
   body.playing #log { display: none; }
+  body.showlog #log { display: block !important; position: fixed; left: 0; right: 0; bottom: 0; max-height: 40vh; background: rgba(0,0,0,.85); z-index: 6; }
   #stage { position: relative; }
   /* The touch shell: shown only where the pointer is a finger. Two pads over
      the bottom corners of the canvas; the game's control bar sits at the
@@ -40,6 +41,7 @@
 <div id="bar">
   <button id="play" disabled>Play</button>
   <button id="saves" disabled>Saves</button>
+  <button id="logbtn">Log</button>
   <button id="bench" disabled class="desktop-only">Benchmark</button>
   <label class="desktop-only"><input type="file" id="file"> pick a .sit</label>
   <span id="stat">loading module…</span>
@@ -291,6 +293,7 @@ async function renderSaves() {
     }
   };
 }
+document.getElementById('logbtn').onclick = () => document.body.classList.toggle('showlog');
 document.getElementById('saves').onclick = () => { panel.hidden = !panel.hidden; if (!panel.hidden) renderSaves(); };
 document.getElementById('savesclose').onclick = () => panel.hidden = true;
 document.getElementById('showall').onchange = renderSaves;
@@ -340,6 +343,18 @@ document.getElementById('bench').onclick = () => boot().then(() => { mode = 'ben
 // --- play: wall-clock pacing, like the desktop runner
 const VBL_HZ = 60.15, RATE = 22050, MAX_STEPS = 2_000_000;
 let audioCtx = null, nextAudioTime = 0;
+// iOS starts audio only inside the user's tap, so the context is made and
+// unlocked synchronously in the click handler, before anything is awaited,
+// and resumed again on every touch of the canvas in case it was suspended.
+function unlockAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { say('no audio: ' + e.message); return; }
+    const silent = audioCtx.createBuffer(1, 1, RATE), src = audioCtx.createBufferSource();
+    src.buffer = silent; src.connect(audioCtx.destination); src.start();
+  }
+  if (audioCtx.state !== 'running') audioCtx.resume().catch(() => {});
+}
+canvas.addEventListener('pointerdown', unlockAudio);
 function pushAudio() {
   const n = wasm.cw_audio_len(); if (!n || !audioCtx) return;
   const src = new Uint8Array(mem.buffer, wasm.cw_audio_drain(), n);
@@ -351,10 +366,24 @@ function pushAudio() {
 }
 const isTouch = matchMedia('(pointer: coarse)').matches;
 if (isTouch) document.body.classList.add('touch');
-document.getElementById('play').onclick = () => boot().then(() => {
+// The game's own start-up is ~85M instructions, sixteen seconds of Mac time
+// that nothing waits on the player for. Run that stretch unpaced and start
+// the clock just before the start screen fades in and its music queues.
+const FAST_FORWARD = Number(new URLSearchParams(location.search).get('ff') ?? 80_000_000);
+function fastForward() {
+  return new Promise(resolve => {
+    let done = 0;
+    function step() {
+      const t = performance.now();
+      while (done < FAST_FORWARD && performance.now() - t < 40) { done += wasm.cw_run_headless(Math.min(2_000_000, FAST_FORWARD - done)); if (!wasm.cw_running()) break; }
+      present(); statEl.textContent = `starting the game… ${(done / 1e6).toFixed(0)}M`;
+      if (done < FAST_FORWARD && wasm.cw_running()) requestAnimationFrame(step); else resolve();
+    }
+    step();
+  });
+}
+document.getElementById('play').onclick = () => { unlockAudio(); return boot().then(fastForward).then(() => {
   mode = 'play'; document.body.classList.add('playing');
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  audioCtx.resume();
   const startTick = wasm.cw_tick(), t0 = performance.now();
   let audioRemainder = 0, lastT = t0, insWindow = 0, winT = t0;
   function frame() {
@@ -370,12 +399,12 @@ document.getElementById('play').onclick = () => boot().then(() => {
     }
     if (!steps) wasm.cw_run(0, deadline, samples); // still mix audio on an idle frame
     insWindow += steps;
-    if (now - winT > 1000) { statEl.textContent = `${(insWindow / ((now - winT) / 1000) / 1e6).toFixed(2)} M/s, tick ${wasm.cw_tick()} vs ${deadline}`; insWindow = 0; winT = now; }
+    if (now - winT > 1000) { statEl.textContent = `${W}x${H}, ${(insWindow / ((now - winT) / 1000) / 1e6).toFixed(1)} M/s, ${wasm.cw_tick() - deadline} ticks`; insWindow = 0; winT = now; }
     pushAudio(); present();
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
-}).catch(e => say('could not start: ' + (e.stack || e)));
+}).catch(e => say('could not start: ' + (e.stack || e))); };
 
 // --- input: the pointer
 function guestPoint(e) {
