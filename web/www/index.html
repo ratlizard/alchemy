@@ -564,8 +564,8 @@ function fastForward() {
 }
 document.getElementById('play').onclick = () => { unlockAudio(); return boot().then(fastForward).then(() => {
   mode = 'play'; document.body.classList.add('playing');
-  const startTick = wasm.cw_tick(), t0 = performance.now();
-  let audioRemainder = 0, lastT = t0, insWindow = 0, winT = t0, reports = 0;
+  let startTick = wasm.cw_tick(), t0 = performance.now();
+  let audioRemainder = 0, lastT = t0, insWindow = 0, winT = t0, reports = 0, catchingUp = 0;
   // Cycles per tick follow what this device delivers: the runner's default
   // is the 25 MHz profile, and a phone that manages 21 M instructions a
   // second would otherwise fall further behind the clock every second.
@@ -577,6 +577,28 @@ document.getElementById('play').onclick = () => { unlockAudio(); return boot().t
     if (mode !== 'play') return;
     const now = performance.now();
     const deadline = startTick + Math.floor((now - t0) / 1000 * VBL_HZ);
+    // Catch-up. Loading a save is ~110M instructions with nothing on screen;
+    // paced by the clock at 26 ms a frame the phone gives it 60% of itself
+    // and the black screen lasts 15-20 s. A third of a second behind, the
+    // guest runs unpaced for most of the frame, the frame is presented every
+    // third time, and the clock is re-based on the guest's tick, so nothing
+    // has to be waited out once it is done.
+    if (wasm.cw_tick() < deadline - 20) {
+      let s = 0;
+      while (performance.now() - now < 42 && s < 60_000_000) {
+        const r = wasm.cw_run_headless(2_000_000);
+        if (!r || !wasm.cw_running()) break;
+        s += r;
+      }
+      insWindow += s; catchingUp++;
+      startTick = wasm.cw_tick(); t0 = performance.now(); lastT = t0;
+      if (catchingUp % 3 === 1) present();
+      if (now - winT > 1000) { statEl.textContent = `${W}x${H}, ${(insWindow / ((now - winT) / 1000) / 1e6).toFixed(1)} M/s, catching up`; insWindow = 0; winT = now; }
+      pushAudio();
+      requestAnimationFrame(frame);
+      return;
+    }
+    if (catchingUp) { say(`play: caught up after ${catchingUp} frames`); catchingUp = 0; }
     const dt = Math.min(now - lastT, 100); lastT = now;
     const want = dt / 1000 * RATE + audioRemainder, samples = Math.floor(want); audioRemainder = want - samples;
     let steps = 0;
