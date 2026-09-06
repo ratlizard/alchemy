@@ -535,8 +535,12 @@ function audioReport() {
 canvas.addEventListener('pointerdown', unlockAudio);
 let audioPushed = 0, audioLoud = 0;
 function pushAudio() {
-  const n = wasm.cw_audio_len(); if (!n || !audioCtx) return;
-  const src = new Uint8Array(mem.buffer, wasm.cw_audio_drain(), n);
+  // Drain first: cw_audio_len is the length of what the last drain took, so
+  // asking it before draining reads the previous frame's count — and on the
+  // first frame that is zero, which made this return before ever draining.
+  // The runner's buffer then only grew, and the page pushed nothing, ever.
+  const ptr = wasm.cw_audio_drain(), n = wasm.cw_audio_len(); if (!n || !audioCtx) return;
+  const src = new Uint8Array(mem.buffer, ptr, n);
   audioPushed += n; for (let i = 0; i < n; i += 64) if (Math.abs(src[i] - 128) > 4) audioLoud++;
   const buf = audioCtx.createBuffer(1, n, RATE), ch = buf.getChannelData(0);
   for (let i = 0; i < n; i++) ch[i] = (src[i] - 128) / 128;
@@ -564,6 +568,8 @@ function fastForward() {
 }
 document.getElementById('play').onclick = () => { unlockAudio(); return boot().then(fastForward).then(() => {
   mode = 'play'; document.body.classList.add('playing');
+  // The boot ran headless; drop the audio it synthesised for those ticks.
+  wasm.cw_audio_drain();
   let startTick = wasm.cw_tick(), t0 = performance.now();
   let audioRemainder = 0, lastT = t0, insWindow = 0, winT = t0, reports = 0, catchingUp = 0;
   // Cycles per tick follow what this device delivers: the runner's default
@@ -583,10 +589,25 @@ document.getElementById('play').onclick = () => { unlockAudio(); return boot().t
     // guest runs unpaced for most of the frame, the frame is presented every
     // third time, and the clock is re-based on the guest's tick, so nothing
     // has to be waited out once it is done.
+    // A slice with a tick deadline stops at the deadline, and the guest can
+    // also come out of one ahead (the runner skips WaitNextEvent sleeps).
+    // Re-base on it rather than idle until the wall clock catches up.
+    if (wasm.cw_tick() > deadline + 30) { startTick = wasm.cw_tick(); t0 = now; }
+    // Catch-up. Loading a save is ~110M instructions with nothing on screen;
+    // paced by the clock at 26 ms a frame the phone gave it 60% of itself
+    // and the black screen lasted 15-20 s. A third of a second behind, the
+    // guest runs on the headless path for most of the frame, the frame is
+    // presented every third time, and the clock is re-based on the guest's
+    // tick. The headless path skips the guest's WaitNextEvent sleeps and
+    // TickCount spins, and runs the interrupt tasks for every tick skipped,
+    // so one uncapped 2M-instruction call in a load skipped minutes of
+    // guest clock and blocked the page for ten seconds. Each call is now
+    // capped at 120 ticks of guest clock, two seconds, which keeps it to a
+    // few tens of milliseconds whatever the guest is doing.
     if (wasm.cw_tick() < deadline - 20) {
       let s = 0;
       while (performance.now() - now < 42 && s < 60_000_000) {
-        const r = wasm.cw_run_headless(2_000_000);
+        const r = wasm.cw_run_catchup(1_000_000, wasm.cw_tick() + 120);
         if (!r || !wasm.cw_running()) break;
         s += r;
       }
@@ -594,13 +615,14 @@ document.getElementById('play').onclick = () => { unlockAudio(); return boot().t
       startTick = wasm.cw_tick(); t0 = performance.now(); lastT = t0;
       if (catchingUp % 3 === 1) present();
       if (now - winT > 1000) { statEl.textContent = `${W}x${H}, ${(insWindow / ((now - winT) / 1000) / 1e6).toFixed(1)} M/s, catching up`; insWindow = 0; winT = now; }
-      pushAudio();
+      // Whatever was mixed while behind belongs to time already gone.
+      wasm.cw_audio_drain(); nextAudioTime = 0;
       requestAnimationFrame(frame);
       return;
     }
     if (catchingUp) { say(`play: caught up after ${catchingUp} frames`); catchingUp = 0; }
     const dt = Math.min(now - lastT, 100); lastT = now;
-    const want = dt / 1000 * RATE + audioRemainder, samples = Math.floor(want); audioRemainder = want - samples;
+    const want = Math.max(0, dt / 1000 * RATE + audioRemainder), samples = Math.floor(want); audioRemainder = want - samples;
     let steps = 0;
     // Spend most of the frame on the guest when it is behind; rendering at
     // 30 fps beats a guest at 70% duty.

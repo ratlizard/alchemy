@@ -18,7 +18,7 @@ for (let f = 0; f < 12 * 60; f++) {
   const deadline = tick0 + Math.floor((f + 1) / 60 * VBL), samples = Math.floor(RATE / 60);
   let s = 0; while (w.cw_tick() < deadline && s < 2_000_000) { s += w.cw_run(2_000_000 - s, deadline, 0); if (!w.cw_running()) break; }
   w.cw_mix_audio(samples);
-  const n = w.cw_audio_len(); const a = new Uint8Array(mem.buffer, w.cw_audio_drain(), n); total += n;
+  const ptr = w.cw_audio_drain(), n = w.cw_audio_len(); const a = new Uint8Array(mem.buffer, ptr, n); total += n;
   for (let i = 0; i < n; i++) if (Math.abs(a[i] - 128) > 4) { loud++; if (!firstLoudTick) firstLoudTick = w.cw_tick(); }
 }
 console.log(`ticks ${tick0}..${w.cw_tick()}: ${total} samples drained, ${loud} non-silent, first at tick ${firstLoudTick}`);

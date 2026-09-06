@@ -481,6 +481,17 @@ pub extern "C" fn cw_run_headless(max_steps: u32) -> u32 {
     with_state(|s| s.runner.run_steps(max_steps as usize, None).0 as u32).unwrap_or(0)
 }
 
+/// Catch-up slice: the headless path with a tick cap. The headless path
+/// fast-forwards the guest's WaitNextEvent sleeps and TickCount spins and
+/// runs its interrupt tasks for every tick it skips, so one uncapped call in
+/// the middle of a save load skipped minutes of guest clock and took 4.6 s
+/// on a desktop, ten on a phone, with the page frozen for the duration. The
+/// cap bounds the clock a call may skip, and so the time it takes.
+#[no_mangle]
+pub extern "C" fn cw_run_catchup(max_steps: u32, tick_cap: u32) -> u32 {
+    with_state(|s| s.runner.run_steps(max_steps as usize, Some(tick_cap)).0 as u32).unwrap_or(0)
+}
+
 #[no_mangle]
 pub extern "C" fn cw_running() -> i32 {
     with_state(|s| i32::from(!s.runner.is_halted())).unwrap_or(0)
