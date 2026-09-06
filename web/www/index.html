@@ -31,6 +31,8 @@
   #act { right: 8px; bottom: 8px; }
   #kb { position: absolute; left: -1000px; top: 0; width: 10px; height: 10px; opacity: 0; }
   body.touch .desktop-only { display: none; }
+  #cheatpanel { position: fixed; left: 50%; top: 48px; transform: translateX(-50%); width: min(720px, 96vw); max-height: calc(100vh - 60px); overflow: auto; background: #1c1c1c; border: 1px solid #444; border-radius: 10px; padding: 10px; z-index: 5; }
+  #cheatpanel .row { margin: 6px 0; } #cheatkeys .k { height: auto; padding: 8px 6px; flex-direction: column; font-size: 13px; }
   #menupanel { position: fixed; left: 50%; top: 48px; transform: translateX(-50%); width: min(720px, 96vw); max-height: calc(100vh - 60px); overflow: auto; background: #1c1c1c; border: 1px solid #444; border-radius: 10px; padding: 10px; z-index: 5; }
   #menupanel .row { margin: 6px 0; } .dim { color: #999; font-size: 12px; }
   #menus { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
@@ -51,6 +53,7 @@
   <button id="play" disabled>Play</button>
   <button id="saves" disabled>Saves</button>
   <button id="menubtn" disabled>Menu</button>
+  <button id="cheatbtn" disabled>Cheats</button>
   <button id="logbtn">Log</button>
   <button id="bench" disabled class="desktop-only">Benchmark</button>
   <label class="desktop-only"><input type="file" id="file"> pick a .sit</label>
@@ -59,6 +62,14 @@
 <div id="menupanel" hidden>
   <div class="row"><b>Menus</b> <span class="dim">the game's own menu bar, which a finger cannot reach at the top of the screen</span> <button id="menuclose">Close</button></div>
   <div id="menus"></div>
+</div>
+<div id="cheatpanel" hidden>
+  <div class="row"><b>Cheats</b> <span class="dim">the game's own cheat mode, read out of its executable (workbench, cythera_keys.md)</span> <button id="cheatclose">Close</button></div>
+  <div class="row" id="cheatstatus"></div>
+  <div class="row"><button id="cheatenable">Enable cheat mode in the preferences and reload</button> <span class="dim">sets bit 0 of the fourth byte of UI Prefs, which nothing in the game sets; the game reads it at launch</span></div>
+  <div class="row"><button id="cheatcode">Type the code (©gra)</button> <span class="dim">in the map window, with a game open; the log says "Cheat mode activated."</span></div>
+  <div class="row"><b>Cheat keys</b> <span class="dim">each is option plus a letter; the ones that ask a number read it from what you type next (Type button), in hex unless said</span></div>
+  <div id="cheatkeys" class="grid" style="grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));"></div>
 </div>
 <div id="savespanel" hidden>
   <div class="row"><b>Saves</b> <span id="savesnote"></span> <button id="savesclose">Close</button></div>
@@ -122,7 +133,7 @@ async function loadWasm() {
   wasm.cw_init();
   say(`wasm loaded in ${(performance.now() - t0).toFixed(0)} ms, page build ${BUILD}`);
   statEl.textContent = '';
-  for (const id of ['play', 'saves', 'bench', 'menubtn']) document.getElementById(id).disabled = false;
+  for (const id of ['play', 'saves', 'bench', 'menubtn', 'cheatbtn']) document.getElementById(id).disabled = false;
 }
 const wasmReady = loadWasm().catch(e => { say('module failed to load: ' + e); statEl.textContent = 'module failed to load'; throw e; });
 // The game is not in this repository. A game.sit served beside the page wins
@@ -255,7 +266,7 @@ async function syncSaves() {
   catch (e) { say('saves: store failed: ' + e); }
   syncing = false;
 }
-setInterval(syncSaves, 2000);
+const saveTimer = setInterval(syncSaves, 2000);
 document.addEventListener('visibilitychange', () => { if (document.hidden) syncSaves(); });
 window.addEventListener('pagehide', syncSaves);
 
@@ -316,6 +327,113 @@ async function renderSaves() {
     }
   };
 }
+// --- cheats. Cythera's map window keeps the last four typed bytes; when they
+// read ©gra and bit 0 of byte 3 of the four-byte 'Pref' 130 "UI Prefs"
+// record is set, cheat mode toggles. Nothing in the game sets that bit, so
+// the page sets it in the stored preference file (a resource fork) and
+// reloads; the game reads preferences at launch. The keys are option plus a
+// letter, matched on the Mac Roman character the option key produces on a
+// US layout, so each is sent as that character with the option key held.
+function resourceForkFind(u8, type, id) {
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  if (u8.length < 16) return null;
+  const dataOff = dv.getUint32(0), mapOff = dv.getUint32(4);
+  if (mapOff + 28 > u8.length) return null;
+  const typeList = mapOff + dv.getUint16(mapOff + 24);
+  const nTypes = dv.getInt16(typeList) + 1;
+  for (let i = 0; i < nTypes; i++) {
+    const e = typeList + 2 + i * 8;
+    const t = String.fromCharCode(u8[e], u8[e + 1], u8[e + 2], u8[e + 3]);
+    if (t !== type) continue;
+    const count = dv.getInt16(e + 4) + 1, refs = typeList + dv.getUint16(e + 6);
+    for (let j = 0; j < count; j++) {
+      const r = refs + j * 12;
+      if (dv.getInt16(r) !== id) continue;
+      const off = dataOff + (dv.getUint32(r + 4) & 0xffffff);
+      const len = dv.getUint32(off);
+      return { offset: off + 4, length: len };
+    }
+  }
+  return null;
+}
+async function prefsRecord() {
+  const recs = await listSaves();
+  return recs.find(r => /\/Cythera Preferences$/.test(r.path)) || null;
+}
+const cheatPanel = document.getElementById('cheatpanel');
+async function renderCheats() {
+  const status = document.getElementById('cheatstatus');
+  if (!gameId) { status.textContent = 'Play first: the preference file exists once the game has run.'; return; }
+  let rec = null;
+  try { rec = await prefsRecord(); } catch (e) {}
+  if (!rec) { status.textContent = 'No stored preferences yet for this game; play a moment (they are stored within two seconds) and reopen this panel.'; return; }
+  const ui = resourceForkFind(rec.rsrc, 'Pref', 130);
+  if (!ui || ui.length !== 4) { status.textContent = `UI Prefs not found in the stored preferences (${rec.rsrc.length} bytes).`; return; }
+  const bytes = rec.rsrc.subarray(ui.offset, ui.offset + 4);
+  const on = (bytes[3] & 1) !== 0;
+  status.textContent = `UI Prefs ${[...bytes].map(b => b.toString(16).padStart(2, '0')).join(' ')}: cheat bit ${on ? 'SET — type the code with a game open' : 'clear'}.`;
+  document.getElementById('cheatenable').disabled = on;
+}
+document.getElementById('cheatenable').onclick = async () => {
+  const rec = await prefsRecord(); if (!rec) return;
+  const ui = resourceForkFind(rec.rsrc, 'Pref', 130); if (!ui || ui.length !== 4) return;
+  rec.rsrc = rec.rsrc.slice(); rec.rsrc[ui.offset + 3] |= 1; rec.savedAt = Date.now();
+  await putSave(rec);
+  say('cheats: cheat bit set in the stored preferences; reloading so the game reads it at launch');
+  // The running game would write its own copy back over ours within two
+  // seconds, so leave before the next scan.
+  clearInterval(saveTimer);
+  location.reload();
+};
+function optionChar(macKey, ch, shift) {
+  wasm.cw_key_down(0x3A, 0);
+  if (shift) wasm.cw_key_down(0x38, 0);
+  wasm.cw_key_down(macKey, ch); wasm.cw_key_up(macKey, ch);
+  if (shift) wasm.cw_key_up(0x38, 0);
+  wasm.cw_key_up(0x3A, 0);
+}
+function plainChar(macKey, ch) { wasm.cw_key_down(macKey, ch); wasm.cw_key_up(macKey, ch); }
+document.getElementById('cheatcode').onclick = () => {
+  if (!booted) { say('cheats: start the game first'); return; }
+  // © is option-g on a US layout; then g, r, a; then M, because the letters
+  // also arm the game's targeting modes and the last one left is Attack.
+  optionChar(0x05, 0xA9, false);
+  setTimeout(() => plainChar(0x05, 0x67), 120);
+  setTimeout(() => plainChar(0x0F, 0x72), 240);
+  setTimeout(() => plainChar(0x00, 0x61), 360);
+  setTimeout(() => plainChar(0x2E, 0x6D), 600);
+  say('cheats: typed ©gra (and M to clear the armed mode); the message window says whether cheat mode toggled');
+  cheatPanel.hidden = true;
+};
+const CHEAT_KEYS = [
+  ['Jump', 'option-j: asks Level, X, Y in hex, then teleports', 0x26, 0xC6, false],
+  ['Take teleporter', 'option-shift-j: asks a teleporter number, decimal', 0x26, 0xEF, true],
+  ['Create object', 'option-s: asks prop number (hex), Data1 (decimal), Data2 (hex); lands in the inventory', 0x01, 0xA7, false],
+  ['What prop', 'option-p: asks a prop index and prints its record', 0x23, 0xB9, false],
+  ['Position', 'option-shift-/: prints the player\'s x, y', 0x2C, 0xC0, true],
+  ['Clock', 'option-shift-t: prints the time and day', 0x11, 0xFF, true],
+  ['Pass 15 minutes', 'option-t', 0x11, 0xA0, false],
+  ['Darker', '<', 0x2B, 0x3C, true],
+  ['Brighter', '>', 0x2F, 0x3E, true],
+  ['Magic map', 'option-v: the zone around the player, until a click', 0x09, 0xC3, false],
+  ['Walk through walls', 'option-w: toggles', 0x0D, 0xB7, false],
+  ['Everyone hostile', 'option-h: toggles', 0x04, 0xFA, false],
+  ['Night vision', 'option-shift-x: toggles flag 18', 0x07, 0xFE, true],
+  ['Regeneration', 'option-r: toggles flag 12, Omen\'s ring', 0x0F, 0xA8, false],
+  ['Turn-based movement', 'option-space: toggles (works without cheat mode)', 0x31, 0xCA, false],
+  ['Speed limiter', 'option-1: toggles (works without cheat mode)', 0x12, 0xC1, false],
+];
+{
+  const host = document.getElementById('cheatkeys');
+  for (const [name, hint, key, ch, shift] of CHEAT_KEYS) {
+    const b = document.createElement('div'); b.className = 'k'; b.innerHTML = `${name}<small>${hint}</small>`;
+    b.addEventListener('pointerdown', e => { e.preventDefault(); if (!booted) return; optionChar(key, ch, shift); say(`cheats: ${name}`); cheatPanel.hidden = true; });
+    host.appendChild(b);
+  }
+}
+document.getElementById('cheatbtn').onclick = () => { cheatPanel.hidden = !cheatPanel.hidden; if (!cheatPanel.hidden) renderCheats(); };
+document.getElementById('cheatclose').onclick = () => cheatPanel.hidden = true;
+
 // --- the game's menus, drawn by the page
 const menuPanel = document.getElementById('menupanel');
 function renderMenus() {
