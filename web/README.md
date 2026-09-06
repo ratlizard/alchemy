@@ -21,3 +21,7 @@ The Node runners in `www/` drive the same module without a browser:
 
 Each takes the game archive as its first argument; `game.sit` beside the page
 (gitignored) is the usual symlink. The game is not in this repository.
+
+The game's windows carry their own ornate frames (drawn by its window
+definition procedure, which the fork calls on reveal and after a move) and
+drag by those frames: press on a border or title plaque, move, release.
