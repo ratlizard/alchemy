@@ -61,6 +61,7 @@ for (let i = 0; i < actions.length;) {
   // the default directory) instead of being tracked as a real dialog.
   else if (a === 'hwait') { let n = Number(actions[i++]) * 1_000_000, d = 0; while (d < n) { const r = w.cw_run_headless(Math.min(2_000_000, n - d)); if (!r || !w.cw_running()) break; d += r; } }
   else if (a === 'audio') { const secs = Number(actions[i++]); const base = w.cw_tick(); let total = 0, loud = 0; for (let k = 1; k <= secs * 60; k++) { const dl = base + Math.floor(k / 60 * VBL); let s = 0; while (w.cw_tick() < dl && s < 2_000_000) { const r = w.cw_run(2_000_000 - s, dl, 0); if (!r || !w.cw_running()) break; s += r; } w.cw_mix_audio(367); const n = w.cw_audio_len(); const buf = new Uint8Array(mem.buffer, w.cw_audio_drain(), n); total += n; for (let j = 0; j < n; j += 8) if (Math.abs(buf[j] - 128) > 4) loud++; } console.log(`audio over ${secs} s: ${total} samples, ${loud} loud checks, tick ${w.cw_tick()}`); }
+  else if (a === 'debug') console.log('sound path:', dec.decode(new Uint8Array(mem.buffer, w.cw_audio_debug(), w.cw_audio_debug_len())));
   else if (a === 'frame') frame(actions[i++]);
   else { console.log('unknown action', a); break; }
 }

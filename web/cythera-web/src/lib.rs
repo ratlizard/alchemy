@@ -51,6 +51,8 @@ struct State {
     found: String,
     /// The JSON answered by `cw_menus`.
     menus: String,
+    /// The line answered by `cw_audio_debug`.
+    debug: String,
 }
 
 thread_local! {
@@ -186,6 +188,7 @@ pub extern "C" fn cw_load(
             pending: Vec::new(),
             found: String::new(),
             menus: String::new(),
+            debug: String::new(),
         })
     });
     0
@@ -589,6 +592,21 @@ pub extern "C" fn cw_audio_drain() -> *const u8 {
         audio.as_ptr()
     })
     .unwrap_or(std::ptr::null())
+}
+
+/// One line on the guest's sound path (channels, commands, component
+/// instances, tune players); valid until the next call into the module.
+#[no_mangle]
+pub extern "C" fn cw_audio_debug() -> *const u8 {
+    with_state(|s| {
+        s.debug = s.runner.audio_debug_summary();
+        s.debug.as_ptr()
+    })
+    .unwrap_or(std::ptr::null())
+}
+#[no_mangle]
+pub extern "C" fn cw_audio_debug_len() -> usize {
+    with_state(|s| s.debug.len()).unwrap_or(0)
 }
 
 #[no_mangle]

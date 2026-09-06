@@ -408,6 +408,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && au
 function audioReport() {
   if (!audioCtx) return;
   say(`audio: context ${audioCtx.state} at ${audioCtx.sampleRate} Hz, ${audioPushed} samples pushed, ${audioLoud} loud checks`);
+  if (booted) say('sound path: ' + dec.decode(new Uint8Array(mem.buffer, wasm.cw_audio_debug(), wasm.cw_audio_debug_len())));
   // The runner hands the page samples only while a sound channel is open;
   // silence between sounds is not mixed. Zero pushed after seconds of play
   // means the game itself is playing nothing.
