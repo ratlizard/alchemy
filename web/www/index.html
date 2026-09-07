@@ -518,11 +518,29 @@ const VBL_HZ = 60.15, RATE = 22050, MAX_STEPS = 2_000_000;
 // stopped idling WaitNextEvent sleeps past ready threads, a paced slice
 // returned almost immediately whatever it was asked for.
 const SLICE = 150_000;
-let audioCtx = null, nextAudioTime = 0;
+let audioCtx = null, nextAudioTime = 0, silentMedia = null, beeped = false;
+// A quarter second of 8 kHz silence. iOS routes a page that uses only Web
+// Audio through an audio session the Ring/Silent switch mutes, and nothing
+// in the Web Audio API can change that -- which is how this page could push
+// 666,792 non-silent samples into a running context and be inaudible. A
+// playing HTMLMediaElement moves the page to a playback session that
+// ignores the switch, so this clip is started in the same user gesture and
+// left looping for as long as the game runs.
+const SILENT_WAV = 'data:audio/wav;base64,UklGRvQHAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YdAHAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
 // iOS starts audio only inside the user's tap, so the context is made and
 // unlocked synchronously in the click handler, before anything is awaited,
 // and resumed again on every touch of the canvas in case it was suspended.
 function unlockAudio() {
+  if (!silentMedia) {
+    silentMedia = new Audio(SILENT_WAV);
+    silentMedia.loop = true;
+    silentMedia.setAttribute('playsinline', '');
+    silentMedia.style.display = 'none';
+    document.body.appendChild(silentMedia);
+    silentMedia.play()
+      .then(() => say('audio: media session held open'))
+      .catch(e => say('audio: media session refused (' + e.name + '), the Ring/Silent switch will mute the game'));
+  }
   if (!audioCtx) {
     try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { say('no audio: ' + e.message); return; }
     const silent = audioCtx.createBuffer(1, 1, RATE), src = audioCtx.createBufferSource();
@@ -531,9 +549,25 @@ function unlockAudio() {
   if (audioCtx.state !== 'running') audioCtx.resume().catch(() => {});
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && audioCtx) audioCtx.resume().catch(() => {}); });
+// A tone straight from the audio context, owing nothing to the game. Heard,
+// and the page's route to the speaker works and any silence is the game's;
+// not heard, and nothing this page plays can be audible, whatever the sample
+// counts say.
+function testBeep() {
+  if (!audioCtx || beeped) return;
+  beeped = true;
+  const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+  osc.frequency.value = 660;
+  gain.gain.value = 0.2;
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  const at = audioCtx.currentTime + 0.05;
+  osc.start(at); osc.stop(at + 0.15);
+  say('audio: test beep sent — if you heard nothing, no sound from this page can reach the speaker');
+}
 function audioReport() {
   if (!audioCtx) return;
-  say(`audio: context ${audioCtx.state} at ${audioCtx.sampleRate} Hz, ${audioPushed} samples pushed, ${audioLoud} loud checks`);
+  const media = silentMedia ? (silentMedia.paused ? 'paused' : 'playing') : 'none';
+  say(`audio: context ${audioCtx.state} at ${audioCtx.sampleRate} Hz, ${audioPushed} samples pushed, ${audioLoud} loud checks, media session ${media}`);
   if (booted) say('sound path: ' + dec.decode(new Uint8Array(mem.buffer, wasm.cw_audio_debug(), wasm.cw_audio_debug_len())));
   // The runner hands the page samples only while a sound channel is open;
   // silence between sounds is not mixed. Zero pushed after seconds of play
@@ -574,7 +608,7 @@ function fastForward() {
     step();
   });
 }
-document.getElementById('play').onclick = () => { unlockAudio(); return boot().then(fastForward).then(() => {
+document.getElementById('play').onclick = () => { unlockAudio(); testBeep(); return boot().then(fastForward).then(() => {
   mode = 'play'; document.body.classList.add('playing');
   // The boot ran headless; drop the audio it synthesised for those ticks.
   wasm.cw_audio_drain();
