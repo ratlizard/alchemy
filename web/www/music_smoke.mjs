@@ -24,15 +24,18 @@ const checksum = parseInt(checksumName.slice(0, 8), 16);
 const page = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const from = page.indexOf('const MUSIC_NAME =');
 const start = page.indexOf('async function inflateRaw');
-const end = page.indexOf('// Hand one file to the module');
+const end = page.indexOf('// "10" after "9"');
 if (from < 0 || start < 0 || end < 0) { console.error('could not find the zip reader in index.html'); process.exit(1); }
-const src = page.slice(from, page.indexOf('\n', from)) + '\n' + page.slice(start, end);
+const src = page.slice(from, page.indexOf('\n', from)) + '\nconst MUSIC_ANY = ' + page.match(/const MUSIC_ANY = ([^;]+);/)[1] + ';\n' + page.slice(start, end);
+const tunesFrom = page.indexOf('const GAME_TUNES = [');
+const order = '\n' + page.slice(tunesFrom, page.indexOf('];', tunesFrom) + 2) +
+  '\n' + page.slice(page.indexOf('function naturalOrder'), page.indexOf('\n}', page.indexOf('function naturalOrder')) + 2);
 const dec = new TextDecoder();
 let warnings = 0;
 const say = m => { warnings++; console.log('  page said:', m); };
-const { unzip, MUSIC_NAME } = await import(
+const { unzip, MUSIC_NAME, naturalOrder, GAME_TUNES } = await import(
   'data:text/javascript;base64,' +
-  Buffer.from(`export const __f = (dec, say) => { ${src}; return { unzip, MUSIC_NAME }; };`).toString('base64')
+  Buffer.from(`export const __f = (dec, say) => { ${src}${order}; return { unzip, MUSIC_NAME, naturalOrder, GAME_TUNES }; };`).toString('base64')
 ).then(m => m.__f(dec, say));
 
 // A zip with the same file twice: stored, and deflated.
@@ -83,6 +86,29 @@ for (const e of entries) {
   }
 }
 console.log(`ok: the zip reader returned ${entries.length} tune files, stored and deflated, byte for byte, and passed over readme.txt`);
+
+// --- track order: the mapping a zip gets when nothing is named for a tune
+{
+  // The names the guides site's Volume I MIDI zip actually carries.
+  const folders = ['001_Originals', '002_Standardized'];
+  const tracks = ['001_Cythera_Theme', '002_Land_King_Hall', '003_Underground', '004_Overworld',
+    '005_Odemia', '006_Danger', '007_Seldane', '008_Pnyx', '009_Catamarca', '010_Cademia',
+    '011_Kosha', '012_Underground_Remix', '013_City_of_Mystery', 'Stairway'];
+  const files = [];
+  for (const f of folders) for (const t of tracks) files.push({ name: `${f}/${t}.mid` });
+  // shuffled, because a zip's central directory is in no particular order
+  for (let i = files.length - 1; i > 0; i--) { const j = (i * 7919) % (i + 1); [files[i], files[j]] = [files[j], files[i]]; }
+  files.sort(naturalOrder);
+  const expected = ['Cythera Theme', 'Land King Hall', 'Underground', 'Overworld', 'Odemia',
+    'Danger', 'Seldane', 'Pnyx', 'Catamarca', 'Cademia', 'Kosha'];
+  for (let i = 0; i < GAME_TUNES.length; i++) {
+    const got = files[i].name, want = expected[i];
+    if (GAME_TUNES[i].name !== want) { console.error(`FAIL: tune ${i} is ${GAME_TUNES[i].name}, expected ${want}`); process.exit(1); }
+    const stem = got.split('/').pop().replace(/^\d+_/, '').replace(/\.mid$/, '').replace(/_/g, ' ');
+    if (stem !== want) { console.error(`FAIL: track order put "${got}" on ${want}`); process.exit(1); }
+  }
+  console.log(`ok: track order put ${GAME_TUNES.length} unnamed files on the right tunes, first ${files[0].name.split('/').pop()} and last ${files[GAME_TUNES.length - 1].name.split('/').pop()}`);
+}
 
 // --- the module: does an installed tune actually change what is played?
 const wasmBytes = readFileSync(new URL('./cythera_web.wasm', import.meta.url));

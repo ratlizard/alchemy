@@ -45,7 +45,7 @@
   #savespanel { position: fixed; left: 50%; top: 48px; transform: translateX(-50%); width: min(640px, 96vw); max-height: calc(100vh - 60px); overflow: auto; background: #1c1c1c; border: 1px solid #444; border-radius: 10px; padding: 10px; z-index: 5; }
   #savespanel .row { margin: 6px 0; }
   #musicpanel { position: fixed; left: 50%; top: 48px; transform: translateX(-50%); width: min(640px, 96vw); max-height: calc(100vh - 60px); overflow: auto; background: #1c1c1c; border: 1px solid #444; border-radius: 10px; padding: 10px; z-index: 5; }
-  #musicpanel .row { margin: 6px 0; } #musicurl { width: 58%; background: #111; color: #ddd; border: 1px solid #444; border-radius: 6px; padding: 6px; }
+  #musicpanel .row { margin: 6px 0; } #musicpanel td, #musicpanel th { text-align: left; padding: 2px 10px 2px 0; } #musicsource { max-width: 70%; background: #111; color: #ddd; border: 1px solid #444; border-radius: 6px; padding: 6px; } #musicurl { width: 58%; background: #111; color: #ddd; border: 1px solid #444; border-radius: 6px; padding: 6px; }
   #savestable { width: 100%; border-collapse: collapse; font-size: 12px; }
   #savestable td, #savestable th { padding: 4px 6px; border-top: 1px solid #333; text-align: left; }
   #savestable button { font: inherit; }
@@ -103,10 +103,11 @@
 <input id="kb" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Type into the game">
 <div id="musicpanel" hidden>
   <div class="row"><b>Music</b> <span id="musicnote" class="dim"></span> <button id="musicclose">Close</button></div>
-  <div class="row dim">A tune library is a set of files each named for the tune it replaces — <code>1A2B3C4D.mid</code> or <code>1A2B3C4D.wav</code>. Give it a zip of them, or single files. The game still chooses which tune plays, when it starts and how loud it is; only the music is someone else's. A tune already playing changes when it next starts.</div>
+  <div class="row dim">Give it a zip, or files. Anything named <code>1A2B3C4D.mid</code> for the tune it replaces is taken at its word; anything else is put in track order and the first eleven become the game's eleven tunes. MIDI plays on the built-in instruments; recordings in any format this browser can decode are played as they are. The game still chooses which tune plays, when it starts and how loud it is. A tune already playing changes when it next starts.</div>
   <div class="row"><label><button id="musicfilebtn">Choose a zip, .mid or .wav</button><input type="file" id="musicfile" accept=".zip,.mid,.midi,.wav" multiple hidden></label></div>
-  <div class="row"><input id="musicurl" type="url" placeholder="https://… a zip to fetch"> <button id="musicload">Fetch</button></div>
-  <div class="row dim">A fetched zip has to be served with CORS allowed, or the browser will not hand it over.</div>
+  <div class="row"><select id="musicsource"></select> <button id="musicfetch">Fetch</button></div>
+  <div class="row"><input id="musicurl" type="url" placeholder="https://… any other zip"> <button id="musicload">Fetch</button></div>
+  <div class="row dim">Fetching needs the site to allow cross-origin reads. If it will not, download the zip in another tab and choose it above; that always works.</div>
   <div class="row"><button id="musicclear">Remove all, and play the game's own music</button></div>
   <div class="row"><table id="musictable"></table></div>
 </div>
@@ -399,7 +400,42 @@ async function prefsRecord() {
 // SYSTEMLESS_TUNE_LIBRARY holding 1A2B3C4D.mid and 1A2B3C4D.wav. A browser
 // has no directory, so the page unpacks a zip and hands the module each file
 // by checksum, and keeps them so the next visit still has them.
+// The game's eleven tunes, in the order they sit in its data file
+// (resources 0x9000..0x900A), with the checksum each one's stream hashes to.
+// The fork keys substitutes by that checksum and knows nothing about Cythera;
+// this table is the Cythera-specific half, and it lives here for that reason.
+// Recomputed with cythera-workbench tools/tune_library.py if a different
+// build of the game ever turns up.
+const GAME_TUNES = [
+  { sum: 0xFB7C80EC, name: 'Cythera Theme' },
+  { sum: 0x240F243E, name: 'Land King Hall' },
+  { sum: 0xE94682D2, name: 'Underground' },
+  { sum: 0xFEF48D9E, name: 'Overworld' },
+  { sum: 0xCECF1A14, name: 'Odemia' },
+  { sum: 0x9F5C06AC, name: 'Danger' },
+  { sum: 0xB403356D, name: 'Seldane' },
+  { sum: 0x464CFCB1, name: 'Pnyx' },
+  { sum: 0xD20743D9, name: 'Catamarca' },
+  { sum: 0x5B214860, name: 'Cademia' },
+  { sum: 0x7C7452F8, name: 'Kosha' },
+];
+// What the guides site publishes. Fetching any of them needs the site to
+// allow cross-origin reads; if it does not, the browser refuses and the file
+// picker below is the way in. The MIDI set is the small one and the one this
+// host reads without converting anything.
+const MUSIC_SOURCES = [
+  { label: 'Volume I — MIDI sources (small, plays on the built-in instruments)',
+    url: 'https://cytheraguides.com/soundtrack/sources/cythera20_vol1_midis.zip' },
+  { label: 'Volume I — recordings, lossless',
+    url: 'https://cytheraguides.com/soundtrack/music/lossless/cythera20_vol1.zip' },
+  { label: 'Volume II — recordings, lossless',
+    url: 'https://cytheraguides.com/soundtrack/music/lossless/cythera20_vol2.zip' },
+  { label: 'Both volumes — recordings',
+    url: 'https://cytheraguides.com/soundtrack/cythera20.zip' },
+];
+
 const MUSIC_NAME = /(?:^|\/)([0-9A-Fa-f]{8})\.(mid|midi|wav)$/;
+const MUSIC_ANY = /\.(mid|midi|wav|m4a|mp3|aif|aiff|flac|ogg|caf|aac)$/i;
 function listMusic() { return idbMusic('readonly', st => st.index('game').getAll(gameId)); }
 function putMusic(rec) { rec.key = gameId + ' ' + rec.checksum; rec.game = gameId; return idbMusic('readwrite', st => st.put(rec)); }
 function clearMusicStore() {
@@ -432,7 +468,7 @@ async function unzip(buf) {
     const commentLen = dv.getUint16(p + 32, true), local = dv.getUint32(p + 42, true);
     const name = dec.decode(buf.subarray(p + 46, p + 46 + nameLen));
     p += 46 + nameLen + extraLen + commentLen;
-    if (!MUSIC_NAME.test(name)) continue;
+    if (!MUSIC_ANY.test(name) || /(^|\/)__MACOSX\//.test(name)) continue;
     if (dv.getUint32(local, true) !== 0x04034b50) { skipped++; continue; }
     const start = local + 30 + dv.getUint16(local + 26, true) + dv.getUint16(local + 28, true);
     const raw = buf.subarray(start, start + csize);
@@ -445,43 +481,107 @@ async function unzip(buf) {
   return out;
 }
 
-// Hand one file to the module and keep it. The module reads the kind from
-// the bytes; the name only says which tune it is for.
-async function installMusicFile(name, bytes, store) {
-  const m = name.match(MUSIC_NAME);
-  if (!m) return 0;
-  const checksum = parseInt(m[1], 16);
-  const kind = wasm.cw_tune_install(checksum, allocBytes(bytes), bytes.length);
-  if (store) {
-    try { await putMusic({ checksum, name: m[1].toUpperCase() + '.' + m[2], kind, bytes }); }
-    catch (e) { say('music: could not store ' + name + ': ' + e); }
+// "10" after "9", not before it, so a numbered set of tracks lands in the
+// order a person would read it in.
+function naturalOrder(a, b) {
+  return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+}
+
+// Anything the browser can decode becomes what the host can play: 8-bit PCM,
+// which is what the Sound Manager channels take and what the game's own audio
+// already is, so nothing is lost by going down to it. This is what makes the
+// site's m4a and flac usable at all -- the host reads uncompressed PCM and
+// Standard MIDI, and neither of those is either.
+async function toPcmWav(bytes) {
+  if (typeof OfflineAudioContext === 'undefined' && typeof webkitOfflineAudioContext === 'undefined') return null;
+  const Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  let audio;
+  try {
+    const ctx = new Ctx(1, 1, 22050);
+    audio = await ctx.decodeAudioData(bytes.slice().buffer);
+  } catch (e) { return null; }
+  const rate = Math.round(audio.sampleRate);
+  const n = audio.length;
+  const chans = [];
+  for (let c = 0; c < audio.numberOfChannels; c++) chans.push(audio.getChannelData(c));
+  const wav = new Uint8Array(44 + n);
+  const dv = new DataView(wav.buffer);
+  const tag = (at, s) => { for (let i = 0; i < s.length; i++) wav[at + i] = s.charCodeAt(i); };
+  tag(0, 'RIFF'); dv.setUint32(4, 36 + n, true); tag(8, 'WAVE');
+  tag(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, rate, true); dv.setUint32(28, rate, true); dv.setUint16(32, 1, true); dv.setUint16(34, 8, true);
+  tag(36, 'data'); dv.setUint32(40, n, true);
+  for (let i = 0; i < n; i++) {
+    let v = 0;
+    for (const ch of chans) v += ch[i];
+    v /= chans.length;
+    wav[44 + i] = Math.max(0, Math.min(255, Math.round(v * 127) + 128));
+  }
+  return wav;
+}
+
+// Hand one file to the module and keep it. The module reads the kind from the
+// bytes, so the name only has to say which tune it is for.
+async function installMusicFile(checksum, label, bytes, store) {
+  let payload = bytes;
+  if (!(bytes[0] === 0x4D && bytes[1] === 0x54) && !(bytes[0] === 0x52 && bytes[1] === 0x49)) {
+    const pcm = await toPcmWav(bytes);
+    if (!pcm) return 0;
+    payload = pcm;
+  }
+  const kind = wasm.cw_tune_install(checksum, allocBytes(payload), payload.length);
+  if (store && kind) {
+    try { await putMusic({ checksum, name: label, kind, bytes: payload }); }
+    catch (e) { say('music: could not store ' + label + ': ' + e); }
   }
   return kind;
 }
-async function installMusicFiles(files, store) {
+
+// Files named for their tune are taken at their word. Anything else is put in
+// order -- the way the tracks are numbered, which is the order the game keeps
+// its tunes in -- and the first eleven become the eleven tunes. The log says
+// what went where, because the guess is only as good as the naming.
+async function installMusicFiles(files) {
+  const named = [], rest = [];
+  for (const f of files) (MUSIC_NAME.test(f.name) ? named : rest).push(f);
+  rest.sort(naturalOrder);
+  const jobs = named.map(f => ({
+    sum: parseInt(f.name.match(MUSIC_NAME)[1], 16),
+    label: f.name.split('/').pop(),
+    bytes: f.bytes,
+    by: 'name',
+  }));
+  rest.slice(0, GAME_TUNES.length).forEach((f, i) => jobs.push({
+    sum: GAME_TUNES[i].sum, label: f.name.split('/').pop(), bytes: f.bytes, by: GAME_TUNES[i].name,
+  }));
+  if (rest.length > GAME_TUNES.length) {
+    say(`music: ${rest.length} files for ${GAME_TUNES.length} tunes; took the first ${GAME_TUNES.length} in order`);
+  }
   let midi = 0, rec = 0, bad = 0;
-  for (const f of files) {
-    const kind = await installMusicFile(f.name, f.bytes, store);
+  for (const job of jobs) {
+    const kind = await installMusicFile(job.sum, job.label, job.bytes, true);
     if (kind === 1) midi++; else if (kind === 2) rec++; else bad++;
+    if (job.by !== 'name') say(`music: ${job.label} → ${job.by}${kind ? '' : ' (could not be read)'}`);
   }
   const parts = [];
   if (midi) parts.push(`${midi} MIDI`);
   if (rec) parts.push(`${rec} recording${rec === 1 ? '' : 's'}`);
   if (bad) parts.push(`${bad} this host cannot read`);
-  say('music: ' + (parts.length ? parts.join(', ') : 'nothing named for a tune') + `; ${wasm.cw_tune_count()} installed`);
+  say('music: ' + (parts.length ? parts.join(', ') : 'nothing usable') + `; ${wasm.cw_tune_count()} installed`);
   renderMusic();
 }
 
-// A zip, or a single file named for its tune.
+// A zip, or a single file.
 async function acceptMusicBytes(name, bytes) {
   if (/\.zip$/i.test(name) || (bytes.length > 4 && bytes[0] === 0x50 && bytes[1] === 0x4B)) {
+    say('music: unpacking…');
     const entries = await unzip(bytes);
     if (!entries) { say('music: that does not look like a zip'); return; }
-    if (!entries.length) { say('music: no file in the zip is named for a tune (1A2B3C4D.mid or .wav)'); return; }
-    await installMusicFiles(entries, true);
+    if (!entries.length) { say('music: no music in the zip that this host could use'); return; }
+    await installMusicFiles(entries);
     return;
   }
-  await installMusicFiles([{ name, bytes }], true);
+  await installMusicFiles([{ name, bytes }]);
 }
 
 async function restoreMusic() {
@@ -496,22 +596,28 @@ async function renderMusic() {
   const note = document.getElementById('musicnote');
   let recs = [];
   try { recs = await listMusic(); } catch (e) {}
-  note.textContent = recs.length ? `${recs.length} installed for this game` : 'the game plays its own music';
-  const kindName = k => k === 2 ? 'recording' : k === 1 ? 'MIDI' : 'unreadable';
-  musicTable.innerHTML = recs.length
-    ? '<tr><th>File</th><th>Kind</th><th>Size</th></tr>' + recs.map(r =>
-        `<tr><td>${r.name}</td><td>${kindName(r.kind)}</td><td>${r.bytes.length.toLocaleString()} B</td></tr>`).join('')
-    : '';
+  const by = new Map(recs.map(r => [r.checksum >>> 0, r]));
+  note.textContent = recs.length ? `${recs.length} of ${GAME_TUNES.length} tunes replaced` : 'the game plays its own music';
+  const kindName = k => k === 2 ? 'recording' : k === 1 ? 'MIDI' : '';
+  musicTable.innerHTML = '<tr><th>Tune</th><th>Playing</th><th>Kind</th></tr>' + GAME_TUNES.map(t => {
+    const r = by.get(t.sum >>> 0);
+    return `<tr><td>${t.name}</td><td>${r ? r.name.replace(/</g, '&lt;') : '<span class="dim">the game’s own</span>'}</td><td>${r ? kindName(r.kind) : ''}</td></tr>`;
+  }).join('');
 }
 document.getElementById('musicbtn').onclick = () => { musicPanel.hidden = !musicPanel.hidden; if (!musicPanel.hidden) renderMusic(); };
 document.getElementById('musicclose').onclick = () => musicPanel.hidden = true;
 document.getElementById('musicfilebtn').onclick = () => document.getElementById('musicfile').click();
 document.getElementById('musicfile').onchange = async e => {
-  for (const file of e.target.files) await acceptMusicBytes(file.name, new Uint8Array(await file.arrayBuffer()));
+  const files = [...e.target.files];
   e.target.value = '';
+  if (files.length === 1) await acceptMusicBytes(files[0].name, new Uint8Array(await files[0].arrayBuffer()));
+  else if (files.length) {
+    const entries = [];
+    for (const f of files) entries.push({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) });
+    await installMusicFiles(entries);
+  }
 };
-document.getElementById('musicload').onclick = async () => {
-  const url = document.getElementById('musicurl').value.trim();
+async function fetchMusic(url) {
   if (!url) return;
   say('music: fetching ' + url);
   try {
@@ -519,9 +625,18 @@ document.getElementById('musicload').onclick = async () => {
     if (!res.ok) { say(`music: the server answered ${res.status}`); return; }
     await acceptMusicBytes(url.split('/').pop() || 'download.zip', new Uint8Array(await res.arrayBuffer()));
   } catch (e) {
-    say('music: could not fetch it (' + e.message + '). A zip has to be served with CORS allowed.');
+    say('music: could not fetch it (' + e.message + '). The site has to allow cross-origin reads; if it does not, download the zip and choose it below.');
   }
-};
+}
+document.getElementById('musicload').onclick = () => fetchMusic(document.getElementById('musicurl').value.trim());
+{
+  const sel = document.getElementById('musicsource');
+  sel.innerHTML = '<option value="">Choose a published set…</option>' +
+    MUSIC_SOURCES.map(s => `<option value="${s.url}">${s.label}</option>`).join('');
+  document.getElementById('musicfetch').onclick = () => {
+    if (sel.value) { document.getElementById('musicurl').value = sel.value; fetchMusic(sel.value); }
+  };
+}
 document.getElementById('musicclear').onclick = async () => {
   wasm.cw_tune_clear();
   try { await clearMusicStore(); } catch (e) {}
