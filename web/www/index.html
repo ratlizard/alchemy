@@ -647,10 +647,17 @@ document.getElementById('importfile').addEventListener('change', async e => {
     renderSaves();
   } catch (err) { say('import failed: ' + err.message); }
 });
+// How much of the screen is lit, sampled rather than counted in full so it
+// can be taken on every frame that is drawn. Cythera draws nothing at all
+// while it loads a save, and nothing else it does leaves the screen black.
+let screenLit = 1;
 function present() {
   const p = wasm.cw_render();
   const px = new Uint8ClampedArray(mem.buffer, p, W * H * 4);
   ctx.putImageData(new ImageData(px, W, H), 0, 0);
+  let lit = 0, seen = 0;
+  for (let i = 0; i < W * H; i += 197, seen++) if (px[i * 4] | px[i * 4 + 1] | px[i * 4 + 2]) lit++;
+  screenLit = lit / (seen || 1);
 }
 
 // --- benchmark: headless pacing, comparable with the native --max-instructions figure
@@ -768,6 +775,7 @@ document.getElementById('play').onclick = () => { unlockAudio(); return boot().t
   wasm.cw_audio_drain();
   let startTick = wasm.cw_tick(), t0 = performance.now();
   let audioRemainder = 0, lastT = t0, insWindow = 0, winT = t0, reports = 0, catchingUp = 0;
+  let blackSince = 0, blackAt = 0;
   // Cycles per tick follow what this device delivers: the runner's default
   // is the 25 MHz profile, and a phone that manages 21 M instructions a
   // second would otherwise fall further behind the clock every second.
@@ -779,16 +787,46 @@ document.getElementById('play').onclick = () => { unlockAudio(); return boot().t
     if (mode !== 'play') return;
     const now = performance.now();
     const deadline = startTick + Math.floor((now - t0) / 1000 * VBL_HZ);
-    // Catch-up. Loading a save is ~110M instructions with nothing on screen;
-    // paced by the clock at 26 ms a frame the phone gives it 60% of itself
-    // and the black screen lasts 15-20 s. A third of a second behind, the
-    // guest runs unpaced for most of the frame, the frame is presented every
-    // third time, and the clock is re-based on the guest's tick, so nothing
-    // has to be waited out once it is done.
-    // A slice with a tick deadline stops at the deadline, and the guest can
-    // also come out of one ahead (the runner skips WaitNextEvent sleeps).
-    // Re-base on it rather than idle until the wall clock catches up.
-    if (wasm.cw_tick() > deadline + 30) { startTick = wasm.cw_tick(); t0 = now; }
+    // A guest that has run ahead of the wall clock is left alone until the
+    // clock catches up: that is what pacing is. Re-basing the clock on it
+    // instead -- which this did briefly -- lets the guest's own idle
+    // fast-forwards carry the deadline along with them, and the game then
+    // keeps time sixteen times too fast, which is a day of hunger every
+    // hour and a half.
+    // Loading a save is about 60M instructions during which the game draws
+    // nothing at all, and pacing the guest to the wall clock through that is
+    // pure waiting: there is no frame to be in time for and no sound to be
+    // in step with. So while the screen is black the page stops pacing and
+    // runs the guest flat out. A drawn screen is the signal to stop, which
+    // is why this waits on the picture rather than on the picture holding
+    // still -- a still picture is also what an idle game has, and pacing an
+    // idle game is the whole point.
+    //
+    // Bounded all the same, because running unpaced advances the guest clock
+    // as fast as the device manages and the game keeps time by it: hunger,
+    // healing and spell durations all run off the same clock.
+    if (screenLit > 0.02) { blackSince = 0; }
+    else if (!blackSince) { blackSince = now; }
+    if (blackSince && now - blackSince < 8000) {
+      if (!blackAt) blackAt = now;
+      let s = 0;
+      while (performance.now() - now < 42) {
+        const r = wasm.cw_run_catchup(SLICE, wasm.cw_tick() + 120);
+        if (!r || !wasm.cw_running()) break;
+        s += r;
+      }
+      insWindow += s;
+      startTick = wasm.cw_tick(); t0 = performance.now(); lastT = t0;
+      present();
+      if (screenLit > 0.02) {
+        say(`play: the screen was black for ${((performance.now() - blackAt) / 1000).toFixed(1)} s; ran unpaced until the game drew again`);
+        blackSince = 0; blackAt = 0;
+      }
+      if (now - winT > 1000) { statEl.textContent = `${W}x${H}, ${(insWindow / ((now - winT) / 1000) / 1e6).toFixed(1)} M/s, drawing nothing`; insWindow = 0; winT = now; }
+      wasm.cw_audio_drain(); nextAudioTime = 0;
+      requestAnimationFrame(frame);
+      return;
+    }
     // Catch-up. Loading a save is ~110M instructions with nothing on screen;
     // paced by the clock at 26 ms a frame the phone gave it 60% of itself
     // and the black screen lasted 15-20 s. A third of a second behind, the
