@@ -35,9 +35,21 @@ is a symlink to a checkout of `cythera-reference`. Without it neither tree runs.
 out beside this repository) with `default-features = false`, exporting a C ABI
 the page calls directly; `src/lib.rs` documents each export. `web/build.sh`
 builds it — read its comments, they are the two toolchain facts that cost a
-build each. `web/www/index.html` is the page; `bench.mjs` and
-`play_smoke.mjs` run the same module under Node, which is how the executor
-was measured and how a change is checked without a browser. The Pages
+build each. `web/www/index.html` is the page, and a set of `*_smoke.mjs`
+beside it run the same module under Node, which is how the executor was
+measured and how a change is checked without a browser: `page_smoke` executes
+the page's own script under a stub document (it catches a use-before-declare
+that parsing cannot); `play_smoke` and `bench` pace the guest; `audio_smoke`
+counts non-silent samples; `saves_smoke` drives the store; `menus_smoke`
+selects a guest menu item; `music_smoke` lifts the page's zip reader out of
+`index.html` and runs the whole substitute-music path; `load_timing` times a
+save load call by call. **Run them all after touching the page or the
+module.** Two things the page does that are easy to break and easy to miss:
+it holds a silent looping media element open, because iOS mutes a page that
+uses only Web Audio; and it runs the guest unpaced while the screen is black
+so a load is not paced out, then paces again the moment the game draws — a
+guest that is ahead of the wall clock must be left to wait, never re-based
+on, or the game keeps time several times too fast. The Pages
 workflow checks the fork out at `cythera-detailed` and builds from that, so a
 fork change reaches the site on the next push here. The game is fetched from
 archive.org at run time and is never in this repository. The workbench's
