@@ -4,8 +4,8 @@ The proving ground for running *Cythera* (1999) somewhere other than a
 Macintosh. Three attempts live here. Two got somewhere and were superseded,
 and are kept whole because each settled things the successors rely on. The
 third is live: the game running in a browser on a WebAssembly build of the
-[systemless](https://github.com/ratlizard/systemless) fork, published from
-this repository to GitHub Pages. `CLAUDE.md` says how the three relate to the
+systemless fork [`ratlizard/wolflizard`](https://github.com/ratlizard/wolflizard),
+published from this repository to GitHub Pages. `CLAUDE.md` says how the three relate to the
 other repositories.
 
 ## `web/` — the game in the browser, on systemless
@@ -27,9 +27,9 @@ out.
 A native arm64 port for modern macOS built without the game's source: it
 loads the original PowerPC executable, interprets it, and reimplements the
 Mac OS Toolbox underneath. C++20, CMake, SDL2. It reaches the start screen and
-is not playable. Retired in August 2026 when running the game moved to a fork
-of [systemless](https://github.com/ratlizard/systemless), which does the same
-job for both the 68K and PowerPC slices and is further along. It stays as a
+is not playable. Retired in August 2026 when running the game moved to the
+systemless fork [`ratlizard/wolflizard`](https://github.com/ratlizard/wolflizard),
+which does the same job for both the 68K and PowerPC slices and is further along. It stays as a
 reference: it serves every Toolbox call on the load-a-saved-game path against
 the PowerPC calling convention. `port/README.md` is its front door,
 `port/POWERPC-NOTES.md` its working state; `cd port && ./smoke.sh` builds it

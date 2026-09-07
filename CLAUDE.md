@@ -22,7 +22,7 @@ assumed:
 | `ratlizard/grimoire` | public, GitHub Pages. The site: browser tools that read and narrowly edit Cythera's files. |
 | **`ratlizard/alchemy`** | **public. This one.** `web/`, live; `port/` and `mobile/`, superseded. **Pushing `main` rebuilds `web/www/` onto `gh-pages`, which Pages serves.** |
 | `ratlizard/cythera-workbench` | private. The Python tools and the notes of the systemless work. Canonical home of the seven scripts vendored here as `tools/` — see below. |
-| `ratlizard/systemless` | public fork of benletchford/systemless. Where running the game happens now, on branch `cythera-detailed`. |
+| `ratlizard/wolflizard` | public fork of benletchford/systemless. Where running the game happens now, on branch `cythera-detailed`. Checked out beside this one, in a directory still named `systemless/`, which is the `path = "../../../systemless"` the browser crate uses. |
 | `ratlizard/delvmod` | public fork. The correctness oracle for Cythera's formats; a submodule of `grimoire`, not of this one. |
 | `e-z-g/cythera-reference` | private. The game, its documentation, the community's writing, the cited Apple documentation. Expected here as `reference/`. |
 

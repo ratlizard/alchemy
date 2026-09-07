@@ -21,7 +21,7 @@ jobs:
           path: alchemy
       - uses: actions/checkout@v4
         with:
-          repository: ratlizard/systemless
+          repository: ratlizard/wolflizard
           ref: cythera-detailed
           path: systemless
       - run: rustup target add wasm32-unknown-unknown
