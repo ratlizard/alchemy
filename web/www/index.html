@@ -510,6 +510,14 @@ document.getElementById('bench').onclick = () => boot().then(() => { mode = 'ben
 
 // --- play: wall-clock pacing, like the desktop runner
 const VBL_HZ = 60.15, RATE = 22050, MAX_STEPS = 2_000_000;
+// One call into the module runs to completion before the page can look at
+// the clock again, so the slice — not the frame budget — sets the longest
+// the page can be unresponsive. At the ~20 M instructions/s a phone
+// manages, 2M instructions is 100 ms; 150k is under 10 ms. This mattered
+// only once the guest had real work to do in a frame: before the runner
+// stopped idling WaitNextEvent sleeps past ready threads, a paced slice
+// returned almost immediately whatever it was asked for.
+const SLICE = 150_000;
 let audioCtx = null, nextAudioTime = 0;
 // iOS starts audio only inside the user's tap, so the context is made and
 // unlocked synchronously in the click handler, before anything is awaited,
@@ -607,7 +615,7 @@ document.getElementById('play').onclick = () => { unlockAudio(); return boot().t
     if (wasm.cw_tick() < deadline - 20) {
       let s = 0;
       while (performance.now() - now < 42 && s < 60_000_000) {
-        const r = wasm.cw_run_catchup(1_000_000, wasm.cw_tick() + 120);
+        const r = wasm.cw_run_catchup(SLICE, wasm.cw_tick() + 120);
         if (!r || !wasm.cw_running()) break;
         s += r;
       }
@@ -628,7 +636,7 @@ document.getElementById('play').onclick = () => { unlockAudio(); return boot().t
     // 30 fps beats a guest at 70% duty.
     const budget = wasm.cw_tick() < deadline - 2 ? 26 : 13;
     while (wasm.cw_tick() < deadline && steps < MAX_STEPS && performance.now() - now < budget) {
-      steps += wasm.cw_run(MAX_STEPS - steps, deadline, 0);
+      steps += wasm.cw_run(Math.min(SLICE, MAX_STEPS - steps), deadline, 0);
       if (!wasm.cw_running()) { say('guest halted'); mode = null; break; }
     }
     // Mix this frame's audio whether or not the CPU ran: a guest already at
