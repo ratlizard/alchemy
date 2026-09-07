@@ -44,6 +44,8 @@
   .menu .key { float: right; color: #999; }
   #savespanel { position: fixed; left: 50%; top: 48px; transform: translateX(-50%); width: min(640px, 96vw); max-height: calc(100vh - 60px); overflow: auto; background: #1c1c1c; border: 1px solid #444; border-radius: 10px; padding: 10px; z-index: 5; }
   #savespanel .row { margin: 6px 0; }
+  #musicpanel { position: fixed; left: 50%; top: 48px; transform: translateX(-50%); width: min(640px, 96vw); max-height: calc(100vh - 60px); overflow: auto; background: #1c1c1c; border: 1px solid #444; border-radius: 10px; padding: 10px; z-index: 5; }
+  #musicpanel .row { margin: 6px 0; } #musicurl { width: 58%; background: #111; color: #ddd; border: 1px solid #444; border-radius: 6px; padding: 6px; }
   #savestable { width: 100%; border-collapse: collapse; font-size: 12px; }
   #savestable td, #savestable th { padding: 4px 6px; border-top: 1px solid #333; text-align: left; }
   #savestable button { font: inherit; }
@@ -54,6 +56,7 @@
   <button id="saves" disabled>Saves</button>
   <button id="menubtn" disabled>Menu</button>
   <button id="cheatbtn" disabled>Cheats</button>
+  <button id="musicbtn" disabled>Music</button>
   <button id="logbtn">Log</button>
   <button id="bench" disabled class="desktop-only">Benchmark</button>
   <label class="desktop-only"><input type="file" id="file"> pick a .sit</label>
@@ -98,6 +101,15 @@
   </div>
 </div>
 <input id="kb" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Type into the game">
+<div id="musicpanel" hidden>
+  <div class="row"><b>Music</b> <span id="musicnote" class="dim"></span> <button id="musicclose">Close</button></div>
+  <div class="row dim">A tune library is a set of files each named for the tune it replaces — <code>1A2B3C4D.mid</code> or <code>1A2B3C4D.wav</code>. Give it a zip of them, or single files. The game still chooses which tune plays, when it starts and how loud it is; only the music is someone else's. A tune already playing changes when it next starts.</div>
+  <div class="row"><label><button id="musicfilebtn">Choose a zip, .mid or .wav</button><input type="file" id="musicfile" accept=".zip,.mid,.midi,.wav" multiple hidden></label></div>
+  <div class="row"><input id="musicurl" type="url" placeholder="https://… a zip to fetch"> <button id="musicload">Fetch</button></div>
+  <div class="row dim">A fetched zip has to be served with CORS allowed, or the browser will not hand it over.</div>
+  <div class="row"><button id="musicclear">Remove all, and play the game's own music</button></div>
+  <div class="row"><table id="musictable"></table></div>
+</div>
 <div id="log"></div>
 <script>
 'use strict';
@@ -133,7 +145,7 @@ async function loadWasm() {
   wasm.cw_init();
   say(`wasm loaded in ${(performance.now() - t0).toFixed(0)} ms, page build ${BUILD}`);
   statEl.textContent = '';
-  for (const id of ['play', 'saves', 'bench', 'menubtn', 'cheatbtn']) document.getElementById(id).disabled = false;
+  for (const id of ['play', 'saves', 'bench', 'menubtn', 'cheatbtn', 'musicbtn']) document.getElementById(id).disabled = false;
 }
 const wasmReady = loadWasm().catch(e => { say('module failed to load: ' + e); statEl.textContent = 'module failed to load'; throw e; });
 // The game is not in this repository. A game.sit served beside the page wins
@@ -195,10 +207,11 @@ async function bootOnce() {
   const rc = wasm.cw_load(p, bytes.length, Math.floor(Date.now() / 1000) + MAC_EPOCH_OFFSET, sw, sh);
   if (rc !== 0) throw new Error(dec.decode(new Uint8Array(mem.buffer, wasm.cw_error_ptr(), wasm.cw_error_len())));
   const restored = await restoreSaves();
+  const tunes = await restoreMusic();
   wasm.cw_start();
   W = wasm.cw_width(); H = wasm.cw_height();
   canvas.width = W; canvas.height = H;
-  say(`booted in ${(performance.now() - t0).toFixed(0)} ms, screen ${W}x${H}, ${wasm.cw_instructions_per_tick()} instructions/tick, ${restored} save file(s) restored`);
+  say(`booted in ${(performance.now() - t0).toFixed(0)} ms, screen ${W}x${H}, ${wasm.cw_instructions_per_tick()} instructions/tick, ${restored} save file(s) restored` + (tunes ? `, ${tunes} substitute tune(s) installed` : ''));
   statEl.textContent = '';
   booted = true;
 }
@@ -213,10 +226,29 @@ const SAVE_DB = 'cythera-saves';
 let dbPromise = null;
 function db() {
   return dbPromise || (dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(SAVE_DB, 1);
-    req.onupgradeneeded = () => { const st = req.result.createObjectStore('files', { keyPath: 'key' }); st.createIndex('game', 'game'); };
+    // Version 2 added the music store. The upgrade creates whichever stores
+    // are missing, so a browser holding a version 1 database with saves in
+    // it keeps them.
+    const req = indexedDB.open(SAVE_DB, 2);
+    req.onupgradeneeded = () => {
+      const d = req.result;
+      if (!d.objectStoreNames.contains('files')) {
+        d.createObjectStore('files', { keyPath: 'key' }).createIndex('game', 'game');
+      }
+      if (!d.objectStoreNames.contains('music')) {
+        d.createObjectStore('music', { keyPath: 'key' }).createIndex('game', 'game');
+      }
+    };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+  }));
+}
+function idbMusic(mode, fn) {
+  return db().then(d => new Promise((resolve, reject) => {
+    const tx = d.transaction('music', mode), st = tx.objectStore('music');
+    const out = fn(st);
+    tx.oncomplete = () => resolve(out && out.result !== undefined ? out.result : out);
+    tx.onerror = () => reject(tx.error);
   }));
 }
 function idb(mode, fn) {
@@ -360,6 +392,143 @@ async function prefsRecord() {
   const recs = await listSaves();
   return recs.find(r => /\/Cythera Preferences$/.test(r.path)) || null;
 }
+// --- music: a tune library, without a directory to keep it in
+//
+// The fork plays a substitute for a tune when one is installed for that
+// tune's checksum, which on the desktop is a directory named by
+// SYSTEMLESS_TUNE_LIBRARY holding 1A2B3C4D.mid and 1A2B3C4D.wav. A browser
+// has no directory, so the page unpacks a zip and hands the module each file
+// by checksum, and keeps them so the next visit still has them.
+const MUSIC_NAME = /(?:^|\/)([0-9A-Fa-f]{8})\.(mid|midi|wav)$/;
+function listMusic() { return idbMusic('readonly', st => st.index('game').getAll(gameId)); }
+function putMusic(rec) { rec.key = gameId + ' ' + rec.checksum; rec.game = gameId; return idbMusic('readwrite', st => st.put(rec)); }
+function clearMusicStore() {
+  return listMusic().then(recs => idbMusic('readwrite', st => { for (const r of recs) st.delete(r.key); }));
+}
+
+// Enough of a zip reader for a folder of files: find the end-of-central-
+// directory record, walk the central directory, and take each entry either
+// stored or deflated. DecompressionStream does the inflating, so there is no
+// library to load. Zip64 and encrypted entries are not handled; entries that
+// cannot be unpacked are counted and reported rather than guessed at.
+async function inflateRaw(raw) {
+  if (typeof DecompressionStream === 'undefined') return null;
+  const stream = new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+async function unzip(buf) {
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= 0 && i > buf.length - 22 - 65536; i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) return null;
+  const count = dv.getUint16(eocd + 10, true);
+  let p = dv.getUint32(eocd + 16, true), out = [], skipped = 0;
+  for (let n = 0; n < count && p + 46 <= buf.length; n++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) break;
+    const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true);
+    const nameLen = dv.getUint16(p + 28, true), extraLen = dv.getUint16(p + 30, true);
+    const commentLen = dv.getUint16(p + 32, true), local = dv.getUint32(p + 42, true);
+    const name = dec.decode(buf.subarray(p + 46, p + 46 + nameLen));
+    p += 46 + nameLen + extraLen + commentLen;
+    if (!MUSIC_NAME.test(name)) continue;
+    if (dv.getUint32(local, true) !== 0x04034b50) { skipped++; continue; }
+    const start = local + 30 + dv.getUint16(local + 26, true) + dv.getUint16(local + 28, true);
+    const raw = buf.subarray(start, start + csize);
+    let bytes = null;
+    if (method === 0) bytes = raw.slice();
+    else if (method === 8) bytes = await inflateRaw(raw);
+    if (bytes) out.push({ name, bytes }); else skipped++;
+  }
+  if (skipped) say(`music: ${skipped} entr${skipped === 1 ? 'y' : 'ies'} in the zip could not be unpacked`);
+  return out;
+}
+
+// Hand one file to the module and keep it. The module reads the kind from
+// the bytes; the name only says which tune it is for.
+async function installMusicFile(name, bytes, store) {
+  const m = name.match(MUSIC_NAME);
+  if (!m) return 0;
+  const checksum = parseInt(m[1], 16);
+  const kind = wasm.cw_tune_install(checksum, allocBytes(bytes), bytes.length);
+  if (store) {
+    try { await putMusic({ checksum, name: m[1].toUpperCase() + '.' + m[2], kind, bytes }); }
+    catch (e) { say('music: could not store ' + name + ': ' + e); }
+  }
+  return kind;
+}
+async function installMusicFiles(files, store) {
+  let midi = 0, rec = 0, bad = 0;
+  for (const f of files) {
+    const kind = await installMusicFile(f.name, f.bytes, store);
+    if (kind === 1) midi++; else if (kind === 2) rec++; else bad++;
+  }
+  const parts = [];
+  if (midi) parts.push(`${midi} MIDI`);
+  if (rec) parts.push(`${rec} recording${rec === 1 ? '' : 's'}`);
+  if (bad) parts.push(`${bad} this host cannot read`);
+  say('music: ' + (parts.length ? parts.join(', ') : 'nothing named for a tune') + `; ${wasm.cw_tune_count()} installed`);
+  renderMusic();
+}
+
+// A zip, or a single file named for its tune.
+async function acceptMusicBytes(name, bytes) {
+  if (/\.zip$/i.test(name) || (bytes.length > 4 && bytes[0] === 0x50 && bytes[1] === 0x4B)) {
+    const entries = await unzip(bytes);
+    if (!entries) { say('music: that does not look like a zip'); return; }
+    if (!entries.length) { say('music: no file in the zip is named for a tune (1A2B3C4D.mid or .wav)'); return; }
+    await installMusicFiles(entries, true);
+    return;
+  }
+  await installMusicFiles([{ name, bytes }], true);
+}
+
+async function restoreMusic() {
+  let recs = [];
+  try { recs = await listMusic(); } catch (e) { return 0; }
+  for (const r of recs) wasm.cw_tune_install(r.checksum, allocBytes(r.bytes), r.bytes.length);
+  return recs.length;
+}
+
+const musicPanel = document.getElementById('musicpanel'), musicTable = document.getElementById('musictable');
+async function renderMusic() {
+  const note = document.getElementById('musicnote');
+  let recs = [];
+  try { recs = await listMusic(); } catch (e) {}
+  note.textContent = recs.length ? `${recs.length} installed for this game` : 'the game plays its own music';
+  const kindName = k => k === 2 ? 'recording' : k === 1 ? 'MIDI' : 'unreadable';
+  musicTable.innerHTML = recs.length
+    ? '<tr><th>File</th><th>Kind</th><th>Size</th></tr>' + recs.map(r =>
+        `<tr><td>${r.name}</td><td>${kindName(r.kind)}</td><td>${r.bytes.length.toLocaleString()} B</td></tr>`).join('')
+    : '';
+}
+document.getElementById('musicbtn').onclick = () => { musicPanel.hidden = !musicPanel.hidden; if (!musicPanel.hidden) renderMusic(); };
+document.getElementById('musicclose').onclick = () => musicPanel.hidden = true;
+document.getElementById('musicfilebtn').onclick = () => document.getElementById('musicfile').click();
+document.getElementById('musicfile').onchange = async e => {
+  for (const file of e.target.files) await acceptMusicBytes(file.name, new Uint8Array(await file.arrayBuffer()));
+  e.target.value = '';
+};
+document.getElementById('musicload').onclick = async () => {
+  const url = document.getElementById('musicurl').value.trim();
+  if (!url) return;
+  say('music: fetching ' + url);
+  try {
+    const res = await fetch(url);
+    if (!res.ok) { say(`music: the server answered ${res.status}`); return; }
+    await acceptMusicBytes(url.split('/').pop() || 'download.zip', new Uint8Array(await res.arrayBuffer()));
+  } catch (e) {
+    say('music: could not fetch it (' + e.message + '). A zip has to be served with CORS allowed.');
+  }
+};
+document.getElementById('musicclear').onclick = async () => {
+  wasm.cw_tune_clear();
+  try { await clearMusicStore(); } catch (e) {}
+  say('music: removed; the game plays its own again from the next tune');
+  renderMusic();
+};
+
 const cheatPanel = document.getElementById('cheatpanel');
 async function renderCheats() {
   const status = document.getElementById('cheatstatus');
@@ -518,7 +687,7 @@ const VBL_HZ = 60.15, RATE = 22050, MAX_STEPS = 2_000_000;
 // stopped idling WaitNextEvent sleeps past ready threads, a paced slice
 // returned almost immediately whatever it was asked for.
 const SLICE = 150_000;
-let audioCtx = null, nextAudioTime = 0, silentMedia = null, beeped = false;
+let audioCtx = null, nextAudioTime = 0, silentMedia = null;
 // A quarter second of 8 kHz silence. iOS routes a page that uses only Web
 // Audio through an audio session the Ring/Silent switch mutes, and nothing
 // in the Web Audio API can change that -- which is how this page could push
@@ -549,21 +718,6 @@ function unlockAudio() {
   if (audioCtx.state !== 'running') audioCtx.resume().catch(() => {});
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && audioCtx) audioCtx.resume().catch(() => {}); });
-// A tone straight from the audio context, owing nothing to the game. Heard,
-// and the page's route to the speaker works and any silence is the game's;
-// not heard, and nothing this page plays can be audible, whatever the sample
-// counts say.
-function testBeep() {
-  if (!audioCtx || beeped) return;
-  beeped = true;
-  const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
-  osc.frequency.value = 660;
-  gain.gain.value = 0.2;
-  osc.connect(gain); gain.connect(audioCtx.destination);
-  const at = audioCtx.currentTime + 0.05;
-  osc.start(at); osc.stop(at + 0.15);
-  say('audio: test beep sent — if you heard nothing, no sound from this page can reach the speaker');
-}
 function audioReport() {
   if (!audioCtx) return;
   const media = silentMedia ? (silentMedia.paused ? 'paused' : 'playing') : 'none';
@@ -608,7 +762,7 @@ function fastForward() {
     step();
   });
 }
-document.getElementById('play').onclick = () => { unlockAudio(); testBeep(); return boot().then(fastForward).then(() => {
+document.getElementById('play').onclick = () => { unlockAudio(); return boot().then(fastForward).then(() => {
   mode = 'play'; document.body.classList.add('playing');
   // The boot ran headless; drop the audio it synthesised for those ticks.
   wasm.cw_audio_drain();

@@ -605,6 +605,40 @@ pub extern "C" fn cw_audio_drain() -> *const u8 {
     .unwrap_or(std::ptr::null())
 }
 
+/// Install music to play in place of the tune with this checksum.
+///
+/// The checksum is the one `SYSTEMLESS_TUNE_LIBRARY` names its files by --
+/// `1A2B3C4D.mid`, `1A2B3C4D.wav` -- so a library built for the desktop can
+/// be unpacked by the page and handed over file by file. The kind is read
+/// from the bytes, not the name: 1 for a Standard MIDI File, 2 for a
+/// recording, 0 for something this host cannot read (still installed, so the
+/// page can count and clear what it gave).
+#[no_mangle]
+pub extern "C" fn cw_tune_install(checksum: u32, ptr: *const u8, len: usize) -> i32 {
+    if ptr.is_null() || len == 0 {
+        return 0;
+    }
+    let bytes = unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec();
+    with_state(|s| match s.runner.install_substitute_tune(checksum, bytes) {
+        systemless::runner::SubstituteTune::Midi => 1,
+        systemless::runner::SubstituteTune::Recording => 2,
+        systemless::runner::SubstituteTune::Unusable => 0,
+    })
+    .unwrap_or(0)
+}
+
+/// Forget every installed substitute, so the game's own music plays again.
+#[no_mangle]
+pub extern "C" fn cw_tune_clear() {
+    with_state(|s| s.runner.clear_substitute_tunes());
+}
+
+/// How many substitutes are installed.
+#[no_mangle]
+pub extern "C" fn cw_tune_count() -> u32 {
+    with_state(|s| s.runner.substitute_tune_count() as u32).unwrap_or(0)
+}
+
 /// One line on the guest's sound path (channels, commands, component
 /// instances, tune players); valid until the next call into the module.
 #[no_mangle]
