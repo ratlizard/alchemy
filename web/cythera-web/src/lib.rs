@@ -49,6 +49,8 @@ struct State {
     pending: Vec<(VfsFileSnapshot, Fingerprint)>,
     /// The full VFS path answered by `cw_vfs_find`.
     found: String,
+    /// A file lifted off the disk for the page to read, by `cw_vfs_stage`.
+    staged: Option<VfsFileSnapshot>,
     /// The JSON answered by `cw_menus`.
     menus: String,
     /// The line answered by `cw_audio_debug`.
@@ -187,6 +189,7 @@ pub extern "C" fn cw_load(
             synced: HashMap::new(),
             pending: Vec::new(),
             found: String::new(),
+            staged: None,
             menus: String::new(),
             debug: String::new(),
         })
@@ -428,6 +431,72 @@ pub extern "C" fn cw_vfs_find(name_ptr: *const u8, name_len: usize) -> i32 {
     })
     .unwrap_or(0)
 }
+/// Lift a file that is already on the disk into `staged`, so the page can
+/// read its forks through the accessors below. Returns 1 when it is there.
+///
+/// The patch route needs this and nothing else does. `Cythera Data` is
+/// expanded out of the packaged installer inside this module, so the page has
+/// never held its bytes; merging a Magpie patch into it means reading it back,
+/// merging in JavaScript, and handing it to `cw_import` before `cw_start`.
+#[no_mangle]
+pub extern "C" fn cw_vfs_stage(path_ptr: *const u8, path_len: usize) -> i32 {
+    let path = unsafe { std::slice::from_raw_parts(path_ptr, path_len) };
+    let path = String::from_utf8_lossy(path).into_owned();
+    with_state(|s| {
+        s.staged = s.runner.vfs_file_snapshot(&path);
+        i32::from(s.staged.is_some())
+    })
+    .unwrap_or(0)
+}
+
+fn staged<R>(f: impl FnOnce(&VfsFileSnapshot) -> R) -> Option<R> {
+    with_state(|s| s.staged.as_ref().map(f)).flatten()
+}
+
+#[no_mangle]
+pub extern "C" fn cw_staged_data_ptr() -> *const u8 {
+    staged(|f| f.data_fork.as_ptr()).unwrap_or(std::ptr::null())
+}
+#[no_mangle]
+pub extern "C" fn cw_staged_data_len() -> usize {
+    staged(|f| f.data_fork.len()).unwrap_or(0)
+}
+#[no_mangle]
+pub extern "C" fn cw_staged_rsrc_ptr() -> *const u8 {
+    staged(|f| f.resource_fork.as_ptr()).unwrap_or(std::ptr::null())
+}
+#[no_mangle]
+pub extern "C" fn cw_staged_rsrc_len() -> usize {
+    staged(|f| f.resource_fork.len()).unwrap_or(0)
+}
+#[no_mangle]
+pub extern "C" fn cw_staged_type() -> u32 {
+    staged(|f| f.file_type).unwrap_or(0)
+}
+#[no_mangle]
+pub extern "C" fn cw_staged_creator() -> u32 {
+    staged(|f| f.creator).unwrap_or(0)
+}
+#[no_mangle]
+pub extern "C" fn cw_staged_flags() -> u32 {
+    staged(|f| u32::from(f.finder_flags)).unwrap_or(0)
+}
+#[no_mangle]
+pub extern "C" fn cw_staged_created() -> u32 {
+    staged(|f| f.created_date).unwrap_or(0)
+}
+#[no_mangle]
+pub extern "C" fn cw_staged_modified() -> u32 {
+    staged(|f| f.modified_date).unwrap_or(0)
+}
+
+/// Drop the staged copy. The archive is 5.6 MB and the page has its own copy
+/// by the time it merges, so nothing should hold two.
+#[no_mangle]
+pub extern "C" fn cw_staged_clear() {
+    with_state(|s| s.staged = None);
+}
+
 #[no_mangle]
 pub extern "C" fn cw_found_ptr() -> *const u8 {
     with_state(|s| s.found.as_ptr()).unwrap_or(std::ptr::null())

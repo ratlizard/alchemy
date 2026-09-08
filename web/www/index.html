@@ -44,8 +44,8 @@
   .menu .key { float: right; color: #999; }
   #savespanel { position: fixed; left: 50%; top: 48px; transform: translateX(-50%); width: min(640px, 96vw); max-height: calc(100vh - 60px); overflow: auto; background: #1c1c1c; border: 1px solid #444; border-radius: 10px; padding: 10px; z-index: 5; }
   #savespanel .row { margin: 6px 0; }
-  #musicpanel { position: fixed; left: 50%; top: 48px; transform: translateX(-50%); width: min(640px, 96vw); max-height: calc(100vh - 60px); overflow: auto; background: #1c1c1c; border: 1px solid #444; border-radius: 10px; padding: 10px; z-index: 5; }
-  #musicpanel .row { margin: 6px 0; } #musicpanel td, #musicpanel th { text-align: left; padding: 2px 10px 2px 0; } #musicsource { max-width: 70%; background: #111; color: #ddd; border: 1px solid #444; border-radius: 6px; padding: 6px; } #musicurl { width: 58%; background: #111; color: #ddd; border: 1px solid #444; border-radius: 6px; padding: 6px; }
+  #musicpanel, #patchpanel { position: fixed; left: 50%; top: 48px; transform: translateX(-50%); width: min(640px, 96vw); max-height: calc(100vh - 60px); overflow: auto; background: #1c1c1c; border: 1px solid #444; border-radius: 10px; padding: 10px; z-index: 5; }
+  #musicpanel .row, #patchpanel .row { margin: 6px 0; } #musicpanel td, #musicpanel th, #patchpanel td, #patchpanel th { text-align: left; padding: 2px 10px 2px 0; } #musicsource { max-width: 70%; background: #111; color: #ddd; border: 1px solid #444; border-radius: 6px; padding: 6px; } #musicurl { width: 58%; background: #111; color: #ddd; border: 1px solid #444; border-radius: 6px; padding: 6px; }
   #savestable { width: 100%; border-collapse: collapse; font-size: 12px; }
   #savestable td, #savestable th { padding: 4px 6px; border-top: 1px solid #333; text-align: left; }
   #savestable button { font: inherit; }
@@ -57,6 +57,7 @@
   <button id="menubtn" disabled>Menu</button>
   <button id="cheatbtn" disabled>Cheats</button>
   <button id="musicbtn" disabled>Music</button>
+  <button id="patchbtn" disabled>Patches</button>
   <button id="logbtn">Log</button>
   <button id="bench" disabled class="desktop-only">Benchmark</button>
   <label class="desktop-only"><input type="file" id="file"> pick a .sit</label>
@@ -111,7 +112,20 @@
   <div class="row"><button id="musicclear">Remove all, and play the game's own music</button></div>
   <div class="row"><table id="musictable"></table></div>
 </div>
+<div id="patchpanel" hidden>
+  <div class="row"><b>Patches</b> <span id="patchnote" class="dim"></span> <button id="patchclose">Close</button></div>
+  <div class="row dim">A <b>Magpie patch</b> is the one add-on Cythera has: a file holding replacement art and text, merged into the game's data before it boots. The only one published is the Pumpkin Patch, which puts jack-o’-lanterns and autumn trees in the world. Nothing is written to your copy of the game — the merge happens here, each time the page loads.</div>
+  <div class="row"><label><button id="patchfilebtn">Choose a patch file</button><input type="file" id="patchfile" hidden></label></div>
+  <div class="row dim">Give it the patch itself — the file inside a Magpie download's <code>Patches</code> folder. A <code>.hqx</code> or <code>.bin</code> wrapper around one is unwrapped here; a <code>.sit</code> is not, because its contents are compressed in a format this page does not read, so extract it first.</div>
+  <div class="row"><table id="patchtable"></table></div>
+</div>
 <div id="log"></div>
+<!-- grimoire's Delver format code, copied verbatim; see delv/README.md. Plain
+     scripts defining globals, in dependency order, before the page's own. -->
+<script src="delv/mac-bytes.js"></script>
+<script src="delv/mac-containers.js"></script>
+<script src="delv/mac-stuffit.js"></script>
+<script src="delv/delv-archive.js"></script>
 <script>
 'use strict';
 // KeyboardEvent.code -> Mac virtual key code, the desktop runner's table.
@@ -146,7 +160,7 @@ async function loadWasm() {
   wasm.cw_init();
   say(`wasm loaded in ${(performance.now() - t0).toFixed(0)} ms, page build ${BUILD}`);
   statEl.textContent = '';
-  for (const id of ['play', 'saves', 'bench', 'menubtn', 'cheatbtn', 'musicbtn']) document.getElementById(id).disabled = false;
+  for (const id of ['play', 'saves', 'bench', 'menubtn', 'cheatbtn', 'musicbtn', 'patchbtn']) document.getElementById(id).disabled = false;
 }
 const wasmReady = loadWasm().catch(e => { say('module failed to load: ' + e); statEl.textContent = 'module failed to load'; throw e; });
 // The game is not in this repository. A game.sit served beside the page wins
@@ -209,10 +223,11 @@ async function bootOnce() {
   if (rc !== 0) throw new Error(dec.decode(new Uint8Array(mem.buffer, wasm.cw_error_ptr(), wasm.cw_error_len())));
   const restored = await restoreSaves();
   const tunes = await restoreMusic();
+  const patched = await applyPatches();
   wasm.cw_start();
   W = wasm.cw_width(); H = wasm.cw_height();
   canvas.width = W; canvas.height = H;
-  say(`booted in ${(performance.now() - t0).toFixed(0)} ms, screen ${W}x${H}, ${wasm.cw_instructions_per_tick()} instructions/tick, ${restored} save file(s) restored` + (tunes ? `, ${tunes} substitute tune(s) installed` : ''));
+  say(`booted in ${(performance.now() - t0).toFixed(0)} ms, screen ${W}x${H}, ${wasm.cw_instructions_per_tick()} instructions/tick, ${restored} save file(s) restored` + (tunes ? `, ${tunes} substitute tune(s) installed` : '') + (patched ? `, ${patched} patch(es) applied` : ''));
   statEl.textContent = '';
   booted = true;
 }
@@ -227,10 +242,10 @@ const SAVE_DB = 'cythera-saves';
 let dbPromise = null;
 function db() {
   return dbPromise || (dbPromise = new Promise((resolve, reject) => {
-    // Version 2 added the music store. The upgrade creates whichever stores
-    // are missing, so a browser holding a version 1 database with saves in
-    // it keeps them.
-    const req = indexedDB.open(SAVE_DB, 2);
+    // Version 2 added the music store and version 3 the patch store. The
+    // upgrade creates whichever stores are missing, so a browser holding an
+    // older database keeps what is in it.
+    const req = indexedDB.open(SAVE_DB, 3);
     req.onupgradeneeded = () => {
       const d = req.result;
       if (!d.objectStoreNames.contains('files')) {
@@ -238,6 +253,9 @@ function db() {
       }
       if (!d.objectStoreNames.contains('music')) {
         d.createObjectStore('music', { keyPath: 'key' }).createIndex('game', 'game');
+      }
+      if (!d.objectStoreNames.contains('patches')) {
+        d.createObjectStore('patches', { keyPath: 'key' }).createIndex('game', 'game');
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -247,6 +265,14 @@ function db() {
 function idbMusic(mode, fn) {
   return db().then(d => new Promise((resolve, reject) => {
     const tx = d.transaction('music', mode), st = tx.objectStore('music');
+    const out = fn(st);
+    tx.oncomplete = () => resolve(out && out.result !== undefined ? out.result : out);
+    tx.onerror = () => reject(tx.error);
+  }));
+}
+function idbPatch(mode, fn) {
+  return db().then(d => new Promise((resolve, reject) => {
+    const tx = d.transaction('patches', mode), st = tx.objectStore('patches');
     const out = fn(st);
     tx.oncomplete = () => resolve(out && out.result !== undefined ? out.result : out);
     tx.onerror = () => reject(tx.error);
@@ -590,6 +616,145 @@ async function restoreMusic() {
   for (const r of recs) wasm.cw_tune_install(r.checksum, allocBytes(r.bytes), r.bytes.length);
   return recs.length;
 }
+
+// --- patches. A Magpie patch is a Delver Archive holding the resources to
+// replace, and Cythera has no folder to drop one in: nothing in the game reads
+// one. The merge happens here instead, between cw_load and cw_start, so the
+// game boots from a patched archive and the packaged copy is never touched.
+// mergeDelverPatch is grimoire's; see delv/README.md.
+//
+// The merge re-serializes all 5.6 MB, and that is the only way: the resources
+// a patch supplies are different lengths from the ones they replace, so
+// nothing can be written in place.
+function listPatches() { return idbPatch('readonly', st => st.index('game').getAll(gameId)); }
+function putPatch(rec) { rec.key = gameId + ' ' + rec.name; rec.game = gameId; return idbPatch('readwrite', st => st.put(rec)); }
+function deletePatch(name) { return idbPatch('readwrite', st => st.delete(gameId + ' ' + name)); }
+
+function findPath(name) {
+  const n = new TextEncoder().encode(name);
+  const p = allocBytes(n); const ok = wasm.cw_vfs_find(p, n.length); wasm.cw_free(p, n.length);
+  return ok ? dec.decode(new Uint8Array(mem.buffer, wasm.cw_found_ptr(), wasm.cw_found_len())) : null;
+}
+// Both forks of a file already on the disk. Each view is sliced before the
+// next module call, because a wasm memory growth detaches the old buffer.
+function stageFile(path) {
+  const n = new TextEncoder().encode(path);
+  const p = allocBytes(n); const ok = wasm.cw_vfs_stage(p, n.length); wasm.cw_free(p, n.length);
+  if (!ok) return null;
+  const rec = { path, type: wasm.cw_staged_type(), creator: wasm.cw_staged_creator(),
+                flags: wasm.cw_staged_flags(), created: wasm.cw_staged_created(),
+                modified: wasm.cw_staged_modified() };
+  rec.data = new Uint8Array(mem.buffer, wasm.cw_staged_data_ptr(), wasm.cw_staged_data_len()).slice();
+  rec.rsrc = new Uint8Array(mem.buffer, wasm.cw_staged_rsrc_ptr(), wasm.cw_staged_rsrc_len()).slice();
+  wasm.cw_staged_clear();
+  return rec;
+}
+
+// A patch travels as the bare file, or inside one wrapper, or inside two: the
+// one published patch is distributed as a .hqx wrapping a .sit. So unwrap
+// until what is left is not a wrapper, and test for StuffIt at every layer --
+// checking only the outside would answer "that is not a Delver Archive" for
+// the exact file most people will pick. Returns {name, bytes}, or throws with
+// something a person can act on.
+function unwrapPatch(fileName, u8) {
+  let name = fileName, bytes = u8;
+  for (let layer = 0; layer < 4; layer++) {
+    if (looksLikeStuffIt(bytes)) {
+      let listed = '';
+      try {
+        const names = parseStuffItArchive(bytes).entries.filter(e => !e.isFolder).map(e => e.path);
+        if (names.length) listed = ' It holds ' + names.map(n => '"' + n + '"').join(', ') + '.';
+      } catch (e) {}
+      throw new Error(name + ' is a StuffIt archive, and this page cannot decompress one.' +
+                      listed + ' Extract it and choose the patch file itself.');
+    }
+    if (looksLikeBinHex(bytes)) {
+      const f = binhexSplitForks(binhexDecode(bytes));
+      name = f.name; bytes = f.data; continue;
+    }
+    const mb = macBinaryForks(bytes);
+    if (mb) { name = mb.name; bytes = mb.data; continue; }
+    break;
+  }
+  return { name, bytes };
+}
+
+// Apply every stored patch to the archive on the disk. Called between cw_load
+// and cw_start; anything that fails is reported and skipped, because a patch
+// that stops working must not stop the game booting.
+async function applyPatches() {
+  let recs = [];
+  try { recs = await listPatches(); } catch (e) { return 0; }
+  if (!recs.length) return 0;
+  const path = findPath('Cythera Data');
+  if (!path) { say('patches: Cythera Data is not on the disk'); return 0; }
+  const base = stageFile(path);
+  if (!base) { say('patches: could not read ' + path); return 0; }
+  let bytes = base.data, applied = 0;
+  for (const r of recs) {
+    try {
+      const m = mergeDelverPatch(bytes, r.bytes);
+      bytes = m.bytes; applied++;
+      say(`patch ${r.name}: ${m.replaced.length} resource(s) replaced` +
+          (m.skipped.length ? `, ${m.skipped.length} not in the archive` : '') +
+          (m.disagreed.length ? `, ${m.disagreed.length} refused` : ''));
+    } catch (e) {
+      say(`patch ${r.name} was not applied: ${e.message}`);
+    }
+  }
+  if (!applied) return 0;
+  // cw_import records the fingerprint as already stored, so the save scan does
+  // not offer the 5.6 MB archive to IndexedDB as if the guest had written it.
+  importRecord({ path, type: base.type, creator: base.creator, flags: base.flags,
+                 created: base.created, modified: base.modified, data: bytes, rsrc: base.rsrc });
+  return applied;
+}
+
+const patchPanel = document.getElementById('patchpanel'), patchTable = document.getElementById('patchtable');
+async function renderPatches() {
+  let recs = [];
+  try { recs = await listPatches(); } catch (e) {}
+  document.getElementById('patchnote').textContent =
+    recs.length ? `${recs.length} patch${recs.length > 1 ? 'es' : ''}, applied at every load` : 'the game is unpatched';
+  patchTable.innerHTML = recs.length
+    ? '<tr><th>name</th><th>replaces</th><th>size</th><th></th></tr>' + recs.map((r, i) =>
+        `<tr><td>${r.name.replace(/</g, '&lt;')}</td><td>${r.replaced} resource(s)</td><td>${r.bytes.length.toLocaleString()} B</td><td><button data-i="${i}">Remove</button></td></tr>`).join('')
+    : '';
+  patchTable.onclick = async e => {
+    const b = e.target.closest('button'); if (!b) return;
+    await deletePatch(recs[+b.dataset.i].name);
+    renderPatches();
+    if (confirm('Removed. Reload the page to play the game unpatched?')) location.reload();
+  };
+}
+document.getElementById('patchbtn').onclick = () => { patchPanel.hidden = !patchPanel.hidden; if (!patchPanel.hidden) renderPatches(); };
+document.getElementById('patchclose').onclick = () => patchPanel.hidden = true;
+document.getElementById('patchfilebtn').onclick = () => document.getElementById('patchfile').click();
+document.getElementById('patchfile').onchange = async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  const note = document.getElementById('patchnote');
+  try {
+    await boot();
+    const raw = new Uint8Array(await file.arrayBuffer());
+    const unwrapped = unwrapPatch(file.name, raw);
+    // Merge once now, against the archive as loaded, so a file that cannot
+    // work says so here rather than silently at the next load.
+    const path = findPath('Cythera Data');
+    if (!path) throw new Error('Cythera Data is not on the disk');
+    const base = stageFile(path);
+    if (!base) throw new Error('could not read ' + path);
+    const m = mergeDelverPatch(base.data, unwrapped.bytes);
+    await putPatch({ name: unwrapped.name, bytes: unwrapped.bytes, replaced: m.replaced.length });
+    note.textContent = '';
+    renderPatches();
+    if (confirm(`${unwrapped.name} replaces ${m.replaced.length} resource(s). Reload the page to play with it?`)) location.reload();
+  } catch (err) {
+    note.textContent = String(err.message || err);
+    say('patch not added: ' + (err.message || err));
+  }
+};
 
 const musicPanel = document.getElementById('musicpanel'), musicTable = document.getElementById('musictable');
 async function renderMusic() {

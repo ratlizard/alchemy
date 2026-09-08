@@ -42,8 +42,8 @@ the page's own script under a stub document (it catches a use-before-declare
 that parsing cannot); `play_smoke` and `bench` pace the guest; `audio_smoke`
 counts non-silent samples; `saves_smoke` drives the store; `menus_smoke`
 selects a guest menu item; `music_smoke` lifts the page's zip reader out of
-`index.html` and runs the whole substitute-music path; `load_timing` times a
-save load call by call. **Run them all after touching the page or the
+`index.html` and runs the whole substitute-music path; `patch_smoke` proves the
+Magpie patch route; `load_timing` times a save load call by call. **Run them all after touching the page or the
 module.** Two things the page does that are easy to break and easy to miss:
 it holds a silent looping media element open, because iOS mutes a page that
 uses only Web Audio; and it runs the guest unpaced while the screen is black
@@ -79,6 +79,39 @@ Every address and finding here — `IsOneGammaAvailable` at `0x074F28`, `MyLDEF`
 at `0x06D5A4`, the routine descriptors, the run-time `0x4EF9` patching — was
 read from PowerPC code and must be re-derived from the `CODE` resources before
 it is asserted about `systemless`. That mistake has been made twice.
+
+## Patches: the one add-on Cythera has
+
+A **Magpie patch** is a Delver Archive carrying the same scenario title as
+`Cythera Data` and holding only the resources to replace. Cythera has no
+plug-in folder and never looks for one, so systemless's own
+`import_vfs_file_relative_to_launched_app` — the call behind the plug-in
+catalogue on systemless.org — has nothing to load here. The merge happens in
+the page instead, between `cw_load` and `cw_start`: read the archive back off
+the disk with `cw_vfs_stage`, merge in JavaScript, hand the result to
+`cw_import`. The packaged copy is never touched and nothing is written back;
+the patch is stored and re-merged at every load.
+
+`mergeDelverPatch` is **grimoire's**, and `web/www/delv/` holds four of its
+`js/` files verbatim — `delv/README.md` says which and why, and
+`delv/check_copies.sh` compares them against the grimoire checkout beside this
+repository. Fix format bugs there and re-copy.
+
+Three things to know before touching it. The merge **re-serializes all 5.6 MB**
+and has to: the resources a patch supplies are different lengths from the ones
+they replace, so nothing can be patched in place. The rebuild is **not**
+byte-identical to Ambrosia's file and is not meant to be — it lays resources
+out as delvmod does, 12,542 bytes shorter — and the game accepts it; the
+patched archive boots to the same tick and the same start screen as the
+unpatched one. And `cw_import` records the imported file's fingerprint as
+already stored, which is what stops the save scan offering the 5.6 MB archive
+to IndexedDB as if the guest had written it.
+
+The one published patch is the Pumpkin Patch, twelve tile sheets. It is
+distributed as a `.hqx` wrapping a `.sit`, and `js/mac-stuffit.js` lists a
+StuffIt archive but does not decompress one, so the page unwraps BinHex and
+MacBinary and refuses a `.sit` by naming what is inside it. `CW_PATCH=<file>`
+on `drive.mjs` reproduces a patched run without a browser.
 
 ## `tools/` — vendored copies, not originals
 

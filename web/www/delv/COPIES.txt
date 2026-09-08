@@ -1,0 +1,9 @@
+sha256 of the canonical js/<name> in ratlizard/grimoire that each file
+here was copied from. check_copies.sh compares the files themselves when
+that repository is checked out beside this one; these hashes say which
+version was taken when it is not.
+
+9931624aeda4cd7f2ad27a90230a2c7ecc63b2eb0fc1e306b32b5264b1c60ff0  mac-bytes.js
+497b72e0919ece3cf48c85564143ca8f91b84a0355fbfbdc76c20d3227a6ccd0  mac-containers.js
+2d02fdd7186278d50f77e7522addb0402767bfc7b2b1813286d8caa2d8bc48eb  mac-stuffit.js
+b02941578afbee2b1fb2869ea4ced85e0544992fc09a48ba1c9c9e18a0c8d527  delv-archive.js

@@ -29,6 +29,34 @@ function importTree(dir) {
   for (const e of readdirSync(dir)) if (statSync(dir + '/' + e).isDirectory()) importTree(dir + '/' + e);
 }
 if (saveDir !== '-') importTree(saveDir);
+// A Magpie patch, merged into Cythera Data before the game starts, exactly as
+// index.html does it: read the archive back out of the disk, merge in
+// JavaScript, hand it to cw_import. CW_PATCH names the patch file itself (the
+// bare Delver Archive, not a .sit). This is how a patched run is reproduced
+// without a browser.
+if (process.env.CW_PATCH) {
+  const vm = await import('node:vm');
+  const ctx = vm.createContext({ TextDecoder, TextEncoder, console });
+  for (const f of ['mac-bytes.js', 'mac-containers.js', 'mac-stuffit.js', 'delv-archive.js'])
+    vm.runInContext(readFileSync(new URL('./delv/' + f, import.meta.url), 'utf8'), ctx, { filename: f });
+  const name = enc.encode('Cythera Data');
+  if (!w.cw_vfs_find(alloc(name), name.length)) throw new Error('Cythera Data is not on the disk');
+  const full = dec.decode(new Uint8Array(mem.buffer, w.cw_found_ptr(), w.cw_found_len()));
+  const fp = enc.encode(full);
+  if (!w.cw_vfs_stage(alloc(fp), fp.length)) throw new Error('could not read ' + full);
+  const meta = { type: w.cw_staged_type(), creator: w.cw_staged_creator(), flags: w.cw_staged_flags(),
+                 created: w.cw_staged_created(), modified: w.cw_staged_modified() };
+  const baseData = new Uint8Array(mem.buffer, w.cw_staged_data_ptr(), w.cw_staged_data_len()).slice();
+  const rsrc = new Uint8Array(mem.buffer, w.cw_staged_rsrc_ptr(), w.cw_staged_rsrc_len()).slice();
+  w.cw_staged_clear();
+  ctx.__base = baseData;
+  ctx.__patch = new Uint8Array(readFileSync(process.env.CW_PATCH));
+  const merged = vm.runInContext('(() => { const m = mergeDelverPatch(__base, __patch); globalThis.__out = m.bytes; return {r: m.replaced.length, s: m.skipped.length, n: m.bytes.length}; })()', ctx);
+  const out = vm.runInContext('__out', ctx);
+  const rc = w.cw_import(alloc(fp), fp.length, meta.type, meta.creator, meta.flags, meta.created, meta.modified,
+                         alloc(out), out.length, rsrc.length ? alloc(rsrc) : 0, rsrc.length);
+  console.log(`patched ${full}: ${merged.r} replaced, ${merged.s} skipped, ${baseData.length} -> ${merged.n} bytes, import ${rc}`);
+}
 w.cw_start();
 let done = 0; while (done < 80_000_000) done += w.cw_run_headless(2_000_000);
 const VBL = 60.15;
