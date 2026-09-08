@@ -2,14 +2,17 @@
 
 Guidance for AI assistants working in this repository.
 
-**You are in `alchemy`: the proving ground for running *Cythera* off a
-Macintosh.** `web/` is live — the game in a browser on the systemless fork's
-WebAssembly build, published to GitHub Pages from this repository — and is
-where a session about the browser or the phone belongs. `port/` and `mobile/`
-are the two retired attempts, kept whole for what they settled: read them,
-cite them, port findings out of them, do not extend them. Emulator fixes
-still belong in `systemless`, not here; this repository only hosts and drives
-the build.
+**You are in `alchemy`: the archive of attempts at running *Cythera* off a
+Macintosh.** Nothing here is live. `port/` and `mobile/` are retired attempts,
+kept whole for what they settled: read them, cite them, port findings out of
+them, do not extend them.
+
+**The browser player left this repository on 8 September 2026.** It was `web/`
+here and is now its own repository, `ratlizard/ratlizard.github.io`, serving at
+the bare **https://ratlizard.github.io/**. It was moved with `git subtree
+split -P web`, so its history came with it and the commits before that date
+appear in both places. A session about the browser or the phone belongs there,
+not here; emulator fixes belong in `ratlizard/wolflizard`.
 
 ## The repositories
 
@@ -20,42 +23,15 @@ assumed:
 | | |
 |---|---|
 | `ratlizard/grimoire` | public, GitHub Pages. The site: browser tools that read and narrowly edit Cythera's files. |
-| **`ratlizard/alchemy`** | **public. This one.** `web/`, live; `port/` and `mobile/`, superseded. **Pushing `main` rebuilds `web/www/` onto `gh-pages`, which Pages serves.** |
+| **`ratlizard/alchemy`** | **public. This one.** An archive: `port/` and `mobile/`, both superseded. Nothing here is deployed. |
+| `ratlizard/ratlizard.github.io` | public, GitHub Pages. The browser player, which lived here as `web/` until 8 September 2026 |
 | `ratlizard/cythera-workbench` | private. The Python tools and the notes of the systemless work. Canonical home of the seven scripts vendored here as `tools/` — see below. |
-| `ratlizard/wolflizard` | public fork of benletchford/systemless. Where running the game happens now, on branch `cythera-detailed`. Checked out beside this one, in a directory still named `systemless/`, which is the `path = "../../../systemless"` the browser crate uses. |
+| `ratlizard/wolflizard` | public fork of benletchford/systemless. Where running the game happens now, on branch `cythera-detailed`. Checked out beside this one as `wolflizard/`. |
 | `ratlizard/delvmod` | public fork. The correctness oracle for Cythera's formats; a submodule of `grimoire`, not of this one. |
 | `e-z-g/cythera-reference` | private. The game, its documentation, the community's writing, the cited Apple documentation. Expected here as `reference/`. |
 
 `reference/` is gitignored and is not in this repository; the usual arrangement
 is a symlink to a checkout of `cythera-reference`. Without it neither tree runs.
-
-## `web/` — the game in the browser
-
-`web/cythera-web` is a `cdylib` over `../../../wolflizard` (the fork, checked
-out beside this repository) with `default-features = false`, exporting a C ABI
-the page calls directly; `src/lib.rs` documents each export. `web/build.sh`
-builds it — read its comments, they are the two toolchain facts that cost a
-build each. `web/www/index.html` is the page, and a set of `*_smoke.mjs`
-beside it run the same module under Node, which is how the executor was
-measured and how a change is checked without a browser: `page_smoke` executes
-the page's own script under a stub document (it catches a use-before-declare
-that parsing cannot); `play_smoke` and `bench` pace the guest; `audio_smoke`
-counts non-silent samples; `saves_smoke` drives the store; `menus_smoke`
-selects a guest menu item; `music_smoke` lifts the page's zip reader out of
-`index.html` and runs the whole substitute-music path; `patch_smoke` proves the
-Magpie patch route; `load_timing` times a save load call by call. **Run them all after touching the page or the
-module.** Two things the page does that are easy to break and easy to miss:
-it holds a silent looping media element open, because iOS mutes a page that
-uses only Web Audio; and it runs the guest unpaced while the screen is black
-so a load is not paced out, then paces again the moment the game draws — a
-guest that is ahead of the wall clock must be left to wait, never re-based
-on, or the game keeps time several times too fast. The Pages
-workflow checks the fork out at `cythera-detailed` and builds from that, so a
-fork change reaches the site on the next push here. The game is fetched from
-archive.org at run time and is never in this repository. The workbench's
-`doc/mobile-web-feasibility.md` (private) has the measurements and the list of
-what the page still lacks; the touch shell in `mobile/` is what to port for
-the controls.
 
 ## `port/` — the native PowerPC port
 
@@ -79,39 +55,6 @@ Every address and finding here — `IsOneGammaAvailable` at `0x074F28`, `MyLDEF`
 at `0x06D5A4`, the routine descriptors, the run-time `0x4EF9` patching — was
 read from PowerPC code and must be re-derived from the `CODE` resources before
 it is asserted about `systemless`. That mistake has been made twice.
-
-## Patches: the one add-on Cythera has
-
-A **Magpie patch** is a Delver Archive carrying the same scenario title as
-`Cythera Data` and holding only the resources to replace. Cythera has no
-plug-in folder and never looks for one, so systemless's own
-`import_vfs_file_relative_to_launched_app` — the call behind the plug-in
-catalogue on systemless.org — has nothing to load here. The merge happens in
-the page instead, between `cw_load` and `cw_start`: read the archive back off
-the disk with `cw_vfs_stage`, merge in JavaScript, hand the result to
-`cw_import`. The packaged copy is never touched and nothing is written back;
-the patch is stored and re-merged at every load.
-
-`mergeDelverPatch` is **grimoire's**, and `web/www/delv/` holds four of its
-`js/` files verbatim — `delv/README.md` says which and why, and
-`delv/check_copies.sh` compares them against the grimoire checkout beside this
-repository. Fix format bugs there and re-copy.
-
-Three things to know before touching it. The merge **re-serializes all 5.6 MB**
-and has to: the resources a patch supplies are different lengths from the ones
-they replace, so nothing can be patched in place. The rebuild is **not**
-byte-identical to Ambrosia's file and is not meant to be — it lays resources
-out as delvmod does, 12,542 bytes shorter — and the game accepts it; the
-patched archive boots to the same tick and the same start screen as the
-unpatched one. And `cw_import` records the imported file's fingerprint as
-already stored, which is what stops the save scan offering the 5.6 MB archive
-to IndexedDB as if the guest had written it.
-
-The one published patch is the Pumpkin Patch, twelve tile sheets. It is
-distributed as a `.hqx` wrapping a `.sit`, and `js/mac-stuffit.js` lists a
-StuffIt archive but does not decompress one, so the page unwraps BinHex and
-MacBinary and refuses a `.sit` by naming what is inside it. `CW_PATCH=<file>`
-on `drive.mjs` reproduces a patched run without a browser.
 
 ## `tools/` — vendored copies, not originals
 

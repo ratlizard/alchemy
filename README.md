@@ -1,26 +1,20 @@
 # Alchemy
 
 The proving ground for running *Cythera* (1999) somewhere other than a
-Macintosh. Three attempts live here. Two got somewhere and were superseded,
-and are kept whole because each settled things the successors rely on. The
-third is live: the game running in a browser on a WebAssembly build of the
-systemless fork [`ratlizard/wolflizard`](https://github.com/ratlizard/wolflizard),
-published from this repository to GitHub Pages. `CLAUDE.md` says how the three relate to the
+Macintosh. Two attempts live here. Both got somewhere and were superseded, and are kept
+whole because each settled things the successors rely on. The third, the game
+running in a browser on a WebAssembly build of the systemless fork
+[`ratlizard/wolflizard`](https://github.com/ratlizard/wolflizard), outgrew this
+repository and left it — see below. `CLAUDE.md` says how they relate to the
 other repositories.
 
-## `web/` — the game in the browser, on systemless
+## The browser player has moved
 
-`web/cythera-web` is a small C-ABI binding over the fork, built for
-`wasm32-unknown-unknown` with no wasm-bindgen; `web/www/index.html` loads it,
-fetches the game from archive.org's public installer archive (or a `game.sit`
-served beside the page), and runs it with the keyboard, the mouse and sound.
-`web/build.sh` builds it locally; `.github/workflows/pages.yml` builds it from
-the fork's `cythera-detailed` branch and publishes `web/www/` to the
-`gh-pages` branch on every push to `main`; Pages serves that branch. Measured 5 September 2026: the portable executor under V8 runs the
-game's boot at 16.5 M instructions/s against 19 M native. `web/www/bench.mjs`
-and `web/www/play_smoke.mjs` are Node runners for the same module. The touch
-controls are still to come; `mobile/` below is where their design was worked
-out.
+It was `web/` here until 8 September 2026 and is now its own repository,
+[`ratlizard/ratlizard.github.io`](https://github.com/ratlizard/ratlizard.github.io),
+playable at **https://ratlizard.github.io/**. It moved with `git subtree
+split -P web`, so its history went with it. Nothing in this repository is
+deployed any more.
 
 ## `port/` — a native port, PowerPC slice
 
@@ -43,7 +37,7 @@ embed, with a keystroke-only installer that puts an edited data file into the
 emulated Mac without a pointer. It worked end to end — an edit made in the
 browser was read back off the emulated screen — and it was always a workaround
 for an iframe boundary that the emulator's server sits behind, which is also
-why a phone cannot hand it a file. Superseded by `web/`, which runs
+why a phone cannot hand it a file. Superseded by the browser player, which runs
 systemless's own WebAssembly build and is handed the data directly. `mobile/MOBILE.md` records what was measured
 and what must not be undone by anyone who revives it; the checks in
 `mobile/utilities/` are the ones that guarded it.

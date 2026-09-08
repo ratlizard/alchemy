@@ -1,5 +1,0 @@
-target/
-www/cythera_web.wasm
-www/game.sit
-www/*.ppm
-www/*.png
