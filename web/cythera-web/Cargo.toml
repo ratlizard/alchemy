@@ -12,7 +12,7 @@ crate-type = ["cdylib"]
 # The fork, browser configuration: no winit/softbuffer/cpal, no Cranelift JIT.
 # The m68k crate's portable trace executor runs the guest, which is exactly
 # how upstream's own browser builds run.
-systemless = { path = "../../../systemless", default-features = false }
+systemless = { path = "../../../wolflizard", default-features = false }
 
 [profile.release]
 opt-level = 3

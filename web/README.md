@@ -1,6 +1,6 @@
 # web/ — Cythera in the browser, on the systemless fork
 
-`cythera-web/` is a C-ABI WebAssembly binding over `../../../systemless`
+`cythera-web/` is a C-ABI WebAssembly binding over `../../../wolflizard`
 (the fork, checked out beside this repository); `www/index.html` is the page
 that runs it. `build.sh` builds the module locally and its comments record
 the two toolchain facts that cost a build each. The Pages workflow builds

@@ -31,7 +31,7 @@ is a symlink to a checkout of `cythera-reference`. Without it neither tree runs.
 
 ## `web/` — the game in the browser
 
-`web/cythera-web` is a `cdylib` over `../../../systemless` (the fork, checked
+`web/cythera-web` is a `cdylib` over `../../../wolflizard` (the fork, checked
 out beside this repository) with `default-features = false`, exporting a C ABI
 the page calls directly; `src/lib.rs` documents each export. `web/build.sh`
 builds it — read its comments, they are the two toolchain facts that cost a
