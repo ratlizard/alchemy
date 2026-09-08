@@ -16,7 +16,7 @@ not here; emulator fixes belong in `ratlizard/wolflizard`.
 
 ## The repositories
 
-The work is split across six, and they are checked out flat beside each other.
+The work is split across seven, and they are checked out flat beside each other.
 A session that clones one gets none of the rest, so paths across them are never
 assumed:
 
@@ -26,6 +26,7 @@ assumed:
 | **`ratlizard/alchemy`** | **public. This one.** An archive: `port/` and `mobile/`, both superseded. Nothing here is deployed. |
 | `ratlizard/ratlizard.github.io` | public, GitHub Pages. The browser player, which lived here as `web/` until 8 September 2026 |
 | `ratlizard/wolflizard` | public fork of benletchford/systemless. Where running the game happens now, on branch `cythera-detailed`. Checked out beside this one as `wolflizard/`. |
+| `ratlizard/cythera-workbench` | private. The Python tools that analyse the executable, and the notes of the systemless work. |
 | `ratlizard/delvmod` | public fork. The correctness oracle for Cythera's formats; a submodule of `grimoire`, not of this one. |
 | `e-z-g/cythera-reference` | private. The game, its documentation, the community's writing, the cited Apple documentation. Expected here as `reference/`. |
 
