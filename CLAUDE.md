@@ -100,9 +100,5 @@ checks and the Playwright drivers that guarded it.
 
 ## Conventions
 
-**Nobody is named here.** The maintainer is "the maintainer" in every file and
-every commit; commits are authored `e-z-g <e-z-g@users.noreply.github.com>`.
-Do not write a name, an email address or a home-directory path into the tree.
-
 The game is not in this repository and never will be. Both trees are
 GPL-3.0-or-later.
