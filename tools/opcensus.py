@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-# COPY. The canonical file is tools/opcensus.py in ratlizard/cythera-workbench;
-# fix it there and re-copy. This repository is retired, so this copy exists
-# only so port/ can run standalone -- do not edit it to diverge.
-# Verify with tools/check_copies.sh. Source sha256 57cca4bee875c72005cde04720dc6bd5295e5bcf5cce35116e59a0a1711a38b1.
+# COPY. The canonical file is tools/opcensus.py in the disassembly toolkit these
+# scripts came out of, which is kept outside this repository; fix it there
+# and re-copy. This repository is retired, so this copy exists only so
+# port/ can run standalone -- do not edit it to diverge.
+# Verify with tools/check_copies.sh ($CYTHERA_TOOLS). Source sha256 57cca4bee875c72005cde04720dc6bd5295e5bcf5cce35116e59a0a1711a38b1.
 """Census the PowerPC opcodes actually used by Cythera's PEF code section.
 
     python3 tools/opcensus.py build/extract/Cythera.data cythera_symbols.txt

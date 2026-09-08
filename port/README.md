@@ -86,19 +86,18 @@ that the machinery is still intact.
 ## Building and running
 
 Requires the original `Cythera.hqx` and `Cythera Data.hqx`, which this
-repository does not have: they are in `e-z-g/cythera-reference`, expected at
-`../reference/game/`, and a symlink to a checkout of it under the name
-`reference` is the usual arrangement. `run.sh` decodes both forks out of them
+repository does not have and never will: supply your own copy of the game at
+`../reference/game/`. A symlink under the name `reference` to a copy kept
+elsewhere is the usual arrangement. `run.sh` decodes both forks out of them
 with `binhex_decode.py` beside it on first use and leaves the result in
 `build/extract/`. Nothing is downloaded and no original game data is
 redistributed.
 
 `cythera_symbols.txt` — the 1877 function names, recovered once by walking the
-binary's traceback tables — is *not* in this repository; it is at the root of
-`ratlizard/cythera-workbench`, and the scripts find it there when that is
-checked out beside this one. Everything here runs without it; traces simply
-print addresses where they would print names. Dropping it at this repository's
-root works too. `../tools/opcensus.py` and `../tools/pefdisasm.py` do require
+binary's traceback tables — is *not* in this repository; it is kept with the
+disassembly toolkit these scripts came out of. Point `$CYTHERA_SYMBOLS` at it,
+or drop it at this repository's root or in `reference/`. Everything here runs
+without it; traces simply print addresses where they would print names. `../tools/opcensus.py` and `../tools/pefdisasm.py` do require
 it.
 
 ```sh

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-# COPY. The canonical file is tools/rsrcdump.py in ratlizard/cythera-workbench;
-# fix it there and re-copy. This repository is retired, so this copy exists
-# only so port/ can run standalone -- do not edit it to diverge.
-# Verify with tools/check_copies.sh. Source sha256 3f3160db6c20b62714c92ab8016a8d31ab6e18d78fe29abfc47669a6c0caef69.
+# COPY. The canonical file is tools/rsrcdump.py in the disassembly toolkit these
+# scripts came out of, which is kept outside this repository; fix it there
+# and re-copy. This repository is retired, so this copy exists only so
+# port/ can run standalone -- do not edit it to diverge.
+# Verify with tools/check_copies.sh ($CYTHERA_TOOLS). Source sha256 3f3160db6c20b62714c92ab8016a8d31ab6e18d78fe29abfc47669a6c0caef69.
 """Inventory a classic Mac resource fork: types, counts, total sizes."""
 import struct, sys, collections
 

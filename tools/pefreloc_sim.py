@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-# COPY. The canonical file is tools/pefreloc_sim.py in ratlizard/cythera-workbench;
-# fix it there and re-copy. This repository is retired, so this copy exists
-# only so port/ can run standalone -- do not edit it to diverge.
-# Verify with tools/check_copies.sh. Source sha256 e4f7b99597ada344a17f617def6c6a08ce7f781f35989753a69abdd75972e59e.
+# COPY. The canonical file is tools/pefreloc_sim.py in the disassembly toolkit these
+# scripts came out of, which is kept outside this repository; fix it there
+# and re-copy. This repository is retired, so this copy exists only so
+# port/ can run standalone -- do not edit it to diverge.
+# Verify with tools/check_copies.sh ($CYTHERA_TOOLS). Source sha256 57d99cee6cfd8cf823bb4a8ffbd02c6ad7ccb178817f93349048e7926a859fff.
 """Simulate PEF relocation for Cythera and validate the result.
 
 Confirms the relocation opcode decoding before it is committed to C++: every
@@ -63,24 +64,25 @@ def main():
             blk = b[p:p+n]; p += n
             for _ in range(rpt):
                 mem[out:out+n] = blk; out += n
-        elif kind == 3:                    # blockCopy + repeatedZero
-            cs = cnt if cnt else argval()
-            rc = argval(); rpt = argval() + 1
+        elif kind == 3:                    # interleaveRepeatBlockWithBlockCopy
+            cs = cnt if cnt else argval()  # common block size
+            rc = argval(); rpt = argval()  # custom size, repeat count
             common = b[p:p+cs]; p += cs
-            for k in range(rpt):
-                mem[out:out+cs] = common; out += cs
-                out += rc
             mem[out:out+cs] = common; out += cs
-        elif kind == 4:                    # blockCopy + repeatedBlock
-            cs = cnt if cnt else argval()
-            rc = argval(); rpt = argval() + 1
-            common = b[p:p+cs]; p += cs
             for k in range(rpt):
-                mem[out:out+cs] = common; out += cs
                 mem[out:out+rc] = b[p:p+rc]; p += rc; out += rc
-            mem[out:out+cs] = common; out += cs
+                mem[out:out+cs] = common; out += cs
+        elif kind == 4:                    # interleaveRepeatBlockWithZero
+            zs = cnt if cnt else argval()  # zero run size
+            rc = argval(); rpt = argval()  # custom size, repeat count
+            out += zs
+            for k in range(rpt):
+                mem[out:out+rc] = b[p:p+rc]; p += rc; out += rc
+                out += zs
         else:
             raise SystemExit(f'unknown pattern opcode {op:#x} at {p-1:#x}')
+    if out != data['unp']:
+        print(f"WARNING: expansion is {out} bytes, header declares {data['unp']}")
     print(f"pattern data: expanded {data['packed']} -> {out} bytes "
           f"(declared unpacked {data['unp']}, total {data['total']})")
 

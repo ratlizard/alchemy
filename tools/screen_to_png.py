@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-# COPY. The canonical file is tools/screen_to_png.py in ratlizard/cythera-workbench;
-# fix it there and re-copy. This repository is retired, so this copy exists
-# only so port/ can run standalone -- do not edit it to diverge.
-# Verify with tools/check_copies.sh. Source sha256 bfda90c40bba7882b64381c20e3cfdb05b5e9cfd266796d3a030e27fd882ceb7.
+# COPY. The canonical file is tools/screen_to_png.py in the disassembly toolkit these
+# scripts came out of, which is kept outside this repository; fix it there
+# and re-copy. This repository is retired, so this copy exists only so
+# port/ can run standalone -- do not edit it to diverge.
+# Verify with tools/check_copies.sh ($CYTHERA_TOOLS). Source sha256 bfda90c40bba7882b64381c20e3cfdb05b5e9cfd266796d3a030e27fd882ceb7.
 """Turn a framebuffer dump from `cythera --dump-screen` into a PNG.
 
     python3 tools/screen_to_png.py screen.bin screen.png

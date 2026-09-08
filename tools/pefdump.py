@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-# COPY. The canonical file is tools/pefdump.py in ratlizard/cythera-workbench;
-# fix it there and re-copy. This repository is retired, so this copy exists
-# only so port/ can run standalone -- do not edit it to diverge.
-# Verify with tools/check_copies.sh. Source sha256 5a32fff98c8b93293f70c7c63952da53eda4047e2943d9ab369a4062eb73400f.
+# COPY. The canonical file is tools/pefdump.py in the disassembly toolkit these
+# scripts came out of, which is kept outside this repository; fix it there
+# and re-copy. This repository is retired, so this copy exists only so
+# port/ can run standalone -- do not edit it to diverge.
+# Verify with tools/check_copies.sh ($CYTHERA_TOOLS). Source sha256 5a32fff98c8b93293f70c7c63952da53eda4047e2943d9ab369a4062eb73400f.
 """Dump a PEF (Preferred Executable Format) container's structure.
 
     python3 tools/pefdump.py build/extract/Cythera.data [--symbols]

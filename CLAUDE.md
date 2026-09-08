@@ -25,7 +25,6 @@ assumed:
 | `ratlizard/grimoire` | public, GitHub Pages. The site: browser tools that read and narrowly edit Cythera's files. |
 | **`ratlizard/alchemy`** | **public. This one.** An archive: `port/` and `mobile/`, both superseded. Nothing here is deployed. |
 | `ratlizard/ratlizard.github.io` | public, GitHub Pages. The browser player, which lived here as `web/` until 8 September 2026 |
-| `ratlizard/cythera-workbench` | private. The Python tools and the notes of the systemless work. Canonical home of the seven scripts vendored here as `tools/` — see below. |
 | `ratlizard/wolflizard` | public fork of benletchford/systemless. Where running the game happens now, on branch `cythera-detailed`. Checked out beside this one as `wolflizard/`. |
 | `ratlizard/delvmod` | public fork. The correctness oracle for Cythera's formats; a submodule of `grimoire`, not of this one. |
 | `e-z-g/cythera-reference` | private. The game, its documentation, the community's writing, the cited Apple documentation. Expected here as `reference/`. |
@@ -60,17 +59,17 @@ it is asserted about `systemless`. That mistake has been made twice.
 
 Seven scripts that `port/` calls or cites: `pefdisasm.py`, `pefdump.py`,
 `pefreloc_sim.py`, `opcensus.py`, `screen_to_png.py`, `rsrcdump.py` and
-`delv_compat.py`. **Every one is a copy.** The canonical file is
-`tools/<name>` in `cythera-workbench`; each carries a `# COPY.` header saying
-so, with the source's sha256.
+`delv_compat.py`. **Every one is a copy.** The canonical `tools/<name>` lives
+with the disassembly toolkit they came out of, outside this repository; each
+carries a `# COPY.` header saying so, with the source's sha256.
 
 Copies rather than a submodule because this repository has to stand alone — a
 session that clones it flat gets no siblings, and `port/smoke.sh` has to run
 anyway — and because a retired tree's copies cannot drift by being developed.
-`tools/check_copies.sh` verifies them against the workbench when it is checked
-out beside this one, and skips cleanly when it is not. Run it if you touch
-anything here. **Fix bugs in the workbench and re-copy; do not edit these to
-diverge.**
+`tools/check_copies.sh` verifies them when `$CYTHERA_TOOLS` points at the
+canonical `tools/` directory, and skips cleanly when it does not. Run it if
+you touch anything here. **Fix bugs in the canonical copy and re-copy; do not
+edit these to diverge.**
 
 This directory did not exist between the repository split and 3 September 2026,
 and `port/smoke.sh` called into it the whole time: with `set -uo pipefail` and
@@ -79,19 +78,19 @@ preferences invariant failed at `pref_count=0` — ten advertised invariants wer
 nine and a false failure. That is what the vendoring fixed.
 
 `cythera_symbols.txt`, the 1,877 PowerPC function names, is *not* vendored: it
-is 200 KB of generated data and lives at the root of `cythera-workbench`.
-`run.sh`, `smoke.sh` and `drive.sh` try `reference/`, this repository's root,
-and `../cythera-workbench/` in that order, and pass `--symbols` only if one
-hits. Without it traces print addresses instead of names, which is not a
-failure.
+is 200 KB of generated data and is kept with that same toolkit. `run.sh`,
+`smoke.sh` and `drive.sh` try `$CYTHERA_SYMBOLS`, then `reference/`, then this
+repository's root, and pass `--symbols` only if one hits. Without it traces
+print addresses instead of names, which is not a failure.
 
 ## `mobile/` — the game on a phone, through an emulator
 
 `mobile.html` is a touch shell around an infinitemac.org embed, with a
 keystroke-only installer that puts an edited data file into the emulated Mac
 without a pointer. It worked end to end: an edit made in the browser was read
-back off the emulated screen. Superseded by the plan to host `systemless`'s own
-WebAssembly build beside `grimoire`.
+back off the emulated screen. Superseded by the browser player, which runs the
+fork's own WebAssembly build and is handed the data directly; it is
+`ratlizard/ratlizard.github.io` now.
 
 `mobile/MOBILE.md` records what was measured and what must not be undone by
 anyone reviving it — in particular the four failure messages the Mac gives when

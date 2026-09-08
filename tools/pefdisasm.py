@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-# COPY. The canonical file is tools/pefdisasm.py in ratlizard/cythera-workbench;
-# fix it there and re-copy. This repository is retired, so this copy exists
-# only so port/ can run standalone -- do not edit it to diverge.
-# Verify with tools/check_copies.sh. Source sha256 2c7457376c3c9d6c1d6a64b90e3f6f865299cd6575547d22b334c6f353afad5a.
+# COPY. The canonical file is tools/pefdisasm.py in the disassembly toolkit these
+# scripts came out of, which is kept outside this repository; fix it there
+# and re-copy. This repository is retired, so this copy exists only so
+# port/ can run standalone -- do not edit it to diverge.
+# Verify with tools/check_copies.sh ($CYTHERA_TOOLS). Source sha256 2c7457376c3c9d6c1d6a64b90e3f6f865299cd6575547d22b334c6f353afad5a.
 """Disassemble a range of the PEF code section.
 
     python3 tools/pefdisasm.py <Cythera.data> <start> [end|+length]

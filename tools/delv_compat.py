@@ -1,7 +1,8 @@
-# COPY. The canonical file is tools/delv_compat.py in ratlizard/cythera-workbench;
-# fix it there and re-copy. This repository is retired, so this copy exists
-# only so port/ can run standalone -- do not edit it to diverge.
-# Verify with tools/check_copies.sh. Source sha256 13e6caef0215704b189dad01623e8dbd4c5d303ffd617e0a9afc973b7450e179.
+# COPY. The canonical file is tools/delv_compat.py in the disassembly toolkit these
+# scripts came out of, which is kept outside this repository; fix it there
+# and re-copy. This repository is retired, so this copy exists only so
+# port/ can run standalone -- do not edit it to diverge.
+# Verify with tools/check_copies.sh ($CYTHERA_TOOLS). Source sha256 13e6caef0215704b189dad01623e8dbd4c5d303ffd617e0a9afc973b7450e179.
 """Make the delvmod package importable on modern Python.
 
 delvmod is a 2014-era Python 2 library. Two things stop it importing on a
