@@ -3,13 +3,21 @@
 # scripts came out of, which is kept outside this repository; fix it there
 # and re-copy. This repository is retired, so this copy exists only so
 # port/ can run standalone -- do not edit it to diverge.
-# Verify with tools/check_copies.sh ($CYTHERA_TOOLS). Source sha256 57d99cee6cfd8cf823bb4a8ffbd02c6ad7ccb178817f93349048e7926a859fff.
+# Verify with tools/check_copies.sh ($CYTHERA_TOOLS). Source sha256 d1fc1a5a00909d7836348337a3853559d10617007ccbfa4da250b1b14ccce2aa.
 """Simulate PEF relocation for Cythera and validate the result.
 
 Confirms the relocation opcode decoding before it is committed to C++: every
 relocated word must land inside the code section, the data section, or the
 synthetic import-vector region, and the instruction stream must be consumed
 exactly. Run as:  python3 tools/pefreloc_sim.py build/extract/Cythera.data
+
+Those checks are necessary and not sufficient: they all passed with
+BySectDWithSkip's two fields read at the wrong widths (see there),
+because a code offset relocated by the data section still lands inside the
+data section. What caught it was an independent reading of the same
+container, grimoire's js/mac-pef.js (pefLoad), which this now matches byte
+for byte over Cythera's data section: 8,466 relocations, 254 of them not on
+a four-byte boundary. Write build/ in a scratch directory, not in the repo.
 """
 import collections, struct, sys
 
@@ -110,8 +118,17 @@ def main():
             w = words[i]; i += 1
             op = w >> 9
             if op <= 0x1F:                       # BySectDWithSkip
-                skip = (w >> 8) & 0x3F
-                n = w & 0xFF
+                # 00, then an 8-bit skip count, then a 6-bit relocation
+                # count. Until 11 September 2026 this read the widths the
+                # other way round (skip as six bits at >> 8, count as eight),
+                # which still consumed the stream and passed the checks
+                # below, while relocating 45,122 bytes of the data section
+                # wrongly -- the egg-kind jump table at r2 + 2704 came out
+                # relocated by the data section, 0x700000 above the code
+                # addresses it holds. The port's pef.cpp had the widths
+                # right; grimoire's pefLoad agrees with this byte for byte.
+                skip = (w >> 6) & 0xFF
+                n = w & 0x3F
                 rel += skip * 4
                 for _ in range(n): bump(sD)
                 stats['BySectDWithSkip'] += 1
