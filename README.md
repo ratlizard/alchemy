@@ -2,7 +2,8 @@
 
 The proving ground for running *Cythera* (1999) somewhere other than a
 Macintosh. Two attempts live here. Both got somewhere and were superseded, and
-are kept whole because each settled things the successors rely on. The third —
+are kept whole because each settled things the successors rely on — and because
+either may be picked up again: they are dormant, not abandoned. The third —
 the game running in a browser on a WebAssembly build of a fork of
 [systemless](https://github.com/benletchford/systemless), Ben Letchford's
 ROM-free runtime for classic Mac software — outgrew this repository and left
@@ -21,14 +22,17 @@ deployed any more.
 A native arm64 port for modern macOS built without the game's source: it
 loads the original PowerPC executable, interprets it, and reimplements the
 Mac OS Toolbox underneath. C++20, CMake, SDL2. It reaches the start screen and
-is not playable. Retired in August 2026 when running the game moved to the
+is not playable. Set aside in August 2026 when running the game moved to the
 systemless fork [`ratlizard/wolflizard`](https://github.com/ratlizard/wolflizard),
-which does the same job for both the 68K and PowerPC slices and is further along. It stays as a
-reference: it serves every Toolbox call on the load-a-saved-game path against
-the PowerPC calling convention. `port/README.md` is its front door,
+which does the same job for both the 68K and PowerPC slices and is further along.
+It is **dormant rather than retired**: it stays as a reference — it serves every
+Toolbox call on the load-a-saved-game path against the PowerPC calling
+convention — and it may be resumed. `port/README.md` is its front door,
 `port/POWERPC-NOTES.md` its working state; `cd port && ./smoke.sh` builds it
 and checks ten invariants, given the game at `reference/game/` (gitignored;
-supply your own).
+supply your own). It still passes them, on a toolchain newer than the one it
+was written against, which is the only fact about resuming it worth having —
+so run it first rather than believing this paragraph.
 
 ## `mobile/` — the game on a phone, through an emulator
 

@@ -2,10 +2,19 @@
 
 Guidance for AI assistants working in this repository.
 
-**You are in `alchemy`: the archive of attempts at running *Cythera* off a
-Macintosh.** Nothing here is live. `port/` and `mobile/` are retired attempts,
-kept whole for what they settled: read them, cite them, port findings out of
-them, do not extend them.
+**You are in `alchemy`: two attempts at running *Cythera* off a Macintosh,
+both dormant.** Dormant is not archived and not read-only. Neither is being
+worked on and nothing here deploys, but either may be resumed at any time, and
+this file said "do not extend them" until 14 September 2026, which was wrong
+and had begun to stop sessions doing obvious things. Read them, cite them,
+port findings out of them — and extend them if that is the work.
+
+**What decays in a dormant project is the build, not the prose.** `port/` still
+builds and passes its ten smoke invariants, with no compiler warnings, on a
+toolchain that has moved since it was last touched. `cd port && ./smoke.sh` is
+how you find out, and it is the first thing to run before resuming rather than
+trusting any sentence written here. `mobile/` has no such check and leans on
+infinitemac.org, so it is the one that could be dead without any local change.
 
 **The browser player left this repository on 8 September 2026.** It was `web/`
 here and is now its own repository, `ratlizard/ratlizard.github.io`, serving at
@@ -23,7 +32,7 @@ assumed:
 | | |
 |---|---|
 | `ratlizard/grimoire` | public, GitHub Pages. The site: browser tools that read and narrowly edit Cythera's files. |
-| **`ratlizard/alchemy`** | **public. This one.** An archive: `port/` and `mobile/`, both superseded. Nothing here is deployed. |
+| **`ratlizard/alchemy`** | **public. This one.** `port/` and `mobile/`, both dormant rather than archived: superseded, not being worked on, resumable. Nothing here is deployed. |
 | `ratlizard/ratlizard.github.io` | public, GitHub Pages. The browser player, which lived here as `web/` until 8 September 2026 |
 | `ratlizard/wolflizard` | public fork of benletchford/systemless. Where running the game happens now, on branch `cythera-detailed`. Checked out beside this one as `wolflizard/`. |
 | `ratlizard/cythera-workbench` | private. The Python tools that analyse the executable, and the notes of the systemless work. |
