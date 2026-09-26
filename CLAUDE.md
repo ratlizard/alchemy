@@ -57,6 +57,9 @@ the load-a-saved-game path against the PowerPC calling convention — where
 
 - `port/README.md` is the front door and says how to build.
 - `port/POWERPC-NOTES.md` is the working state, and the more useful of the two.
+  Its open items have names that do not change, `alchemy/<word>-<six
+  characters>`; cite the name rather than a position, and grep the six
+  characters to find every mention.
 - `cd port && ./smoke.sh` builds it and checks its invariants.
 
 **It describes the PowerPC slice.** `systemless` runs the game's **68K** slice.

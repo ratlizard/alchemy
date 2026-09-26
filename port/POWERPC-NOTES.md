@@ -95,14 +95,15 @@ address range with branches resolved and named from both that map and
 binary was previously not worth the trouble. 561 of the 563 imports are
 resolved. See *Reading a function before it runs* below.
 
-Everything under §1's *What is already known about it* was then read that
-way: the `WDEF`/`CDEF` patch mechanism, the whole `LDEF` 128 → `refCon` →
-`MyLDEF` → `LDEFDraw` protocol, the `ListRec` offsets the game writes through,
-how `TDialog` installs its user-item draw procs, the `ModalDialog` filter chain,
-and the exact construction order of `TCreatePlayerDialog`. That last one turned
-up something the plan had wrong: **the character-creation dialogue's background
-is drawn through a pixel pattern**, so `PixPat` support is part of §1 rather
-than a later nicety.
+Everything under *What is already known about it*, in
+`alchemy/dialog-manager-y5y19d`, was then read that way: the `WDEF`/`CDEF`
+patch mechanism, the whole `LDEF` 128 → `refCon` → `MyLDEF` → `LDEFDraw`
+protocol, the `ListRec` offsets the game writes through, how `TDialog` installs
+its user-item draw procs, the `ModalDialog` filter chain, and the exact
+construction order of `TCreatePlayerDialog`. That last one turned up something
+the plan had wrong: **the character-creation dialogue's background is drawn
+through a pixel pattern**, so `PixPat` support is part of
+`alchemy/dialog-manager-y5y19d` rather than a later nicety.
 
 `smoke.sh` still passes all ten invariants, warning-free.
 
@@ -291,8 +292,9 @@ glue map a disassembly shows `bl 0xc3258` where it means `GetNewDialog`.
 synthetic transition vector relocation put there, and writes `address name` for
 all 561 of them. `pefdisasm.py` picks the file up automatically.
 
-Everything in §1 below was read this way, before a line of the Dialog Manager
-existed. It is much cheaper than guessing and then debugging the guess.
+Everything in `alchemy/dialog-manager-y5y19d` below was read this way, before a
+line of the Dialog Manager existed. It is much cheaper than guessing and then
+debugging the guess.
 
 The single most valuable technique remains **letting the game diagnose itself**:
 the alert layer resolves `ALRT`/`DITL` resources and `ParamText` into readable
@@ -336,7 +338,13 @@ CYT_TRACE_CALLS_FROM_PC=0x115190 ./drive.sh --click-at-pass 600000:245,268
 
 ## What to do next
 
-### 1. The Dialog Manager, and the List Manager with it
+Each item here and under *Three start-screen bugs still open* has a name that
+does not change, `alchemy/<word>-<six random characters>`. Cite the name, never
+a position: grep the six characters and every hit is that item. The items were
+numbered until 25 September 2026, and two references had already drifted to
+the wrong number.
+
+### `alchemy/dialog-manager-y5y19d`. The Dialog Manager, and the List Manager with it
 
 **Partly done.** The Dialog Manager's record and item list are implemented
 (`mac/dialog_mgr.cpp`), and so is the Control Manager's state
@@ -536,7 +544,7 @@ needs to fetch an event, offer it to the filter, and fall through to standard
 item handling when the filter declines.
 
 **What `TCreatePlayerDialog::TCreatePlayerDialog` (`0x0A0A9C`) actually does**,
-in order — this is the acceptance test for §1:
+in order — this is the acceptance test for `alchemy/dialog-manager-y5y19d`:
 
 1. `TDialog::TDialog(133)`, then `SetPort(dialog)`.
 2. `FaceADialog(dialog)` — `SetPort`, then `BackPixPat(SetTilePat(420))`.
@@ -583,7 +591,7 @@ Watchpoints for the path, all in `TDelverApp`:
 | `0x114400` | `BeginPlay` |
 | `0x112E3C` | `InitWorld` — reached, from `DoStartup` |
 
-### 1a. The three record layouts, now confirmed against Apple
+#### The three record layouts, now confirmed against Apple
 
 `reference/apple-documentation/` has Inside Macintosh, and the three
 structures this work invents are all in it. Two were guesses that turned out
@@ -619,10 +627,11 @@ directly rather than making you add up field widths:
 ```
 
 88 bytes before `cellArray`. **`refCon` at 60 and `userHandle` at 68 are
-exactly what §1 derived by reading the binary** — the reverse engineering and
-Apple's documentation agree, which is as much confidence as this is going to
-get. `LNew`'s signature matches too: `LNew(rView, dataBounds, cSize, theProc,
-theWindow, drawIt, hasGrow, scrollHoriz, scrollVert)`.
+exactly what `alchemy/dialog-manager-y5y19d` derived by reading the binary** —
+the reverse engineering and Apple's documentation agree, which is as much
+confidence as this is going to get. `LNew`'s signature matches too:
+`LNew(rView, dataBounds, cSize, theProc, theWindow, drawIt, hasGrow,
+scrollHoriz, scrollVert)`.
 
 **`DialogRecord`** — *Macintosh Toolbox Essentials*, page 6-166: a whole
 `WindowRecord`, then `items: Handle`, `textH: TEHandle`, `editField: Integer`,
@@ -640,15 +649,15 @@ accepts and any test comparing against 255 silently rejects. Fixed. It is the
 kind of error that would have surfaced as a control that draws but never
 responds, days later and nowhere near its cause.
 
-### 1b. Open Game with a real saved game — DONE, zero calls missing
+#### Open Game with a real saved game — DONE, zero calls missing
 
 **Loading an existing save now serves every Toolbox call Cythera makes.** With
 `I.M.Cheater` in the support directory, clicking Open Game runs to the
 interpreter's 4-billion-instruction budget with **0 distinct, 0 total**
 unimplemented calls, and the game has created and erased its main window. The
 screen is that window on the desktop dither — nothing of the world is painted,
-because painting it is the gameplay rendering path (§5) and none of that has
-run yet.
+because painting it is the gameplay rendering path
+(`alchemy/gameplay-render-gnb8gw`) and none of that has run yet.
 
 What closed the gap, in order: the List Manager (`mac/list_mgr.cpp`), then
 `RGB2HSL`/`HSL2RGB`, `PBFlushFileSync` and `LAddToCell`. The last four were
@@ -669,7 +678,7 @@ Two bugs worth not repeating:
 
 The original comparison and the setup steps follow.
 
-### 1b (original). The route in, and how to reproduce it
+#### Open Game, the original account: the route in, and how to reproduce it
 
 **Loading an existing save gets further than creating a character, and needs
 strictly less.** `reference/community/addons/606_CheaterSavedGame.sit.hqx` unpacks (with
@@ -712,7 +721,7 @@ Standard File picks that instead -- it is also type `DelP` and sorts earlier.
 The screen at the stopping point is the 50% desktop dither, so nothing of the
 world has been painted yet; the list is being built before anything draws.
 
-### 2. Menu bar drawing and `MenuSelect`
+### `alchemy/menu-bar-6lfx32`. Menu bar drawing and `MenuSelect`
 
 `MenuKey` already works and dispatches through the application's own handler.
 `MenuSelect` returns 0 and `DrawMenuBar` is a no-op, so the menus cannot be used
@@ -720,15 +729,16 @@ with the mouse. The contents are already correct in memory — `GetMenu` copies
 `MENU` resources almost verbatim. Draw with the system font (family 0, 12pt) and
 use `grayishTextOr` (mode 49), which `blitGlyph` already implements, for
 disabled items. Note that the game hides the menu bar on the start screen
-(`TApp::HideMenuBar`), so this is worth doing after §1.
+(`TApp::HideMenuBar`), so this is worth doing after
+`alchemy/dialog-manager-y5y19d`.
 
-### 3. TextEdit
+### `alchemy/textedit-76sbcl`. TextEdit
 
 Nineteen `TE` calls are imported, including `TEStyleNew`, `TEStyleInsert` and
 `TECalText`, so this is narrower than a full TextEdit but wider than the
 previous handoff assumed. `TETextBox` already works.
 
-### 4. The gameplay rendering path — described by the person who wrote it
+### `alchemy/gameplay-render-gnb8gw`. The gameplay rendering path — described by the person who wrote it
 
 `../reference/community/delver-homepage/Delving into Details.html` is Glenn
 Andreas's own account of the Delver engine, and it specifies this section
@@ -772,7 +782,7 @@ alias plain `CopyBits` and ignore the mask), transfer modes beyond copy and XOR,
 and any direct framebuffer access that bypasses the `PixMap` abstraction. The
 first thing it will want is **pixel pattern tiling** — see the gaps below.
 
-### 5. Audio, then packaging
+### `alchemy/audio-packaging-vzvflo`. Audio, then packaging
 
 `SndNewChannel` reports `notEnoughHardwareErr` and the Tune Player is a silent
 sink. Route `SndPlayDoubleBuffer` and the tune sequencer to SDL audio;
@@ -797,7 +807,8 @@ format — the game's score. Then a signed `Cythera.app`, saves under
 - **`CloseResFile` does not close.** It commits the file's bytes but leaves it
   in the search order, because nothing in this port reopens a resource file
   within a run and the game reads its preferences back through the same handles.
-- **Pixel patterns are allocated but not drawn**, and this is now blocking §1.
+- **Pixel patterns are allocated but not drawn**, and this is now blocking
+  `alchemy/dialog-manager-y5y19d`.
   `NewPixPat` builds a real `PixPat` record — the application resizes
   `(**pp).patData` and writes through `(**pp).patMap` itself, so a null handle
   sent both into unmapped memory — but `BackPixPat` and `PenPixPat` still record
@@ -808,7 +819,8 @@ format — the game's score. Then a signed `Cythera.app`, saves under
   The fix is the one already sketched — extend `PenPattern` in `mac/qd_draw.cpp`
   with the tile's pixels mapped into the destination palette through `ColorMap`,
   and have `fillRect` index it by `x % w`, `y % h` — but it now has a caller to
-  verify against, and §1 describes the record it has to read.
+  verify against, and `alchemy/dialog-manager-y5y19d` describes the record it
+  has to read.
 - **Apple event parameters are all reported absent.** Correct for the launch
   event, which carries none — it is how `CheckAppleEventForMissingParams`
   concludes that nothing is missing. Opening a document by dropping it on the
@@ -829,7 +841,7 @@ format — the game's score. Then a signed `Cythera.app`, saves under
   everything Cythera does, but code that walked a region's scanline data would
   not see the real shape.
 - **Ovals, arcs and polygons** are approximated by their bounding rectangles.
-  §1 will want real ovals for radio buttons.
+  `alchemy/dialog-manager-y5y19d` will want real ovals for radio buttons.
 - **`SetThreadScheduler`** records the game's custom scheduler but keeps
   round-robin order.
 - **`CopyMask`/`CopyDeepMask`** ignore the mask argument.
@@ -1028,15 +1040,15 @@ The ramp is applied in `Display::present`, and also to the palette written by
 person would have been seeing. Without that second one the fade cannot be
 verified headlessly at all, because nothing headless reaches `present`.
 
-**Music is not a bug, it is item 6.** `SndNewChannel` reports
-`notEnoughHardwareErr` and the Tune Player is a silent sink by design; the
-start-up calls `SndNewChannel` three times and gets nothing. Making it play
+**Music is not a bug, it is `alchemy/audio-packaging-vzvflo`.** `SndNewChannel`
+reports `notEnoughHardwareErr` and the Tune Player is a silent sink by design;
+the start-up calls `SndNewChannel` three times and gets nothing. Making it play
 means routing the QuickTime Music Architecture and `SndPlayDoubleBuffer` to SDL
 audio, and QTMA is a synthesiser -- note events against instrument voices, not
-sample playback. `grimoire/utilities/qtma2midi.py` already decodes the tune format
-and `grimoire/utilities/midi2wav.py` renders MIDI, so the cheapest first version is
-probably to decode the score to MIDI and play it with a small software
-synthesiser rather than to implement QTMA note-for-note.
+sample playback. `grimoire/utilities/qtma2midi.py` already decodes the tune
+format and `grimoire/utilities/midi2wav.py` renders MIDI, so the cheapest first
+version is probably to decode the score to MIDI and play it with a small
+software synthesiser rather than to implement QTMA note-for-note.
 
 ## The engine's own GUI model, from the person who decoded it
 
@@ -1069,7 +1081,7 @@ reads both forks already; this is why that matters.
 Reported from a real windowed run. None is fixed; each has evidence attached so
 the next attempt does not start from zero.
 
-### Clicks still do nothing — the Retina fix was not it
+### `alchemy/window-clicks-0gco0p`. Clicks still do nothing — the Retina fix was not it
 
 `SDL_WINDOW_ALLOW_HIGHDPI` really does mean SDL reports mouse positions in
 window points while the renderer measures in backing pixels, and that really
@@ -1090,7 +1102,7 @@ every `SDL_MOUSEMOTION` and every `GetMouse`, run windowed, wave the pointer
 over the Quit sign, and see what the game is being told. If the numbers are
 right, the bug is above the Display layer.
 
-### The Ambrosia logo has a white surround, and should be black
+### `alchemy/logo-surround-f0tr5c`. The Ambrosia logo has a white surround, and should be black
 
 At 250 million instructions the screen is 73% **index 0**, and index 0 in the
 palette the game installs is white. The port never fills the backdrop, so what
@@ -1101,7 +1113,7 @@ Not yet established: whether the real game paints that area black explicitly
 black. `FillRect`, `FillCRect` and `PaintBehind` are all called during
 start-up and are the places to look first.
 
-### The colours are close but not right — the mechanism, found
+### `alchemy/start-colours-bzjxfw`. The colours are close but not right — the mechanism, found
 
 **The start screen's artwork and the screen's colour table are from different
 palettes, and that is not a port bug so far as anyone can yet show.**
@@ -1146,8 +1158,9 @@ candidates worth testing in order:
    and this one changes them constantly.
 
 The second is the more likely and the more consequential: the engine uses
-palette animation for lava, water and pulsing magic (see section 4), and none
-of that can work at all while colour matching is baked in at draw time.
+palette animation for lava, water and pulsing magic (see
+`alchemy/gameplay-render-gnb8gw`), and none of that can work at all while
+colour matching is baked in at draw time.
 
 ### Why `reference/screenshots/Cythera-title.png` cannot arbitrate this
 
@@ -1209,7 +1222,7 @@ buttons are inline `DITL` items the game creates with `procID` 16000/16002, its
 own patched `CDEF`, and the portrait picker is `LNew` with
 `dataBounds(0,0,3,2)` -- three portraits by two sexes -- with the client's own
 `MyLDEF` installed in `refCon` and the trampoline in `LDEF` 128 skipped. Both
-are written up in section 1 above.
+are written up in `alchemy/dialog-manager-y5y19d` above.
 
 That is worth more to systemless than another manager is to this port.
 

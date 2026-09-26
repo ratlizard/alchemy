@@ -221,8 +221,8 @@ readable text, which turned every opaque exit into an instruction.
    and character creation: clicking New Game gets as far as `GetNewDialog(133)`
    and stops there. `DLOG` 133 and its `DITL` are the whole character sheet.
    It also needs **pixel pattern tiling**, which the dialogue paints its
-   background with — see POWERPC-NOTES.md §1, where the whole path is written out
-   from a static read of the binary.
+   background with — see `alchemy/dialog-manager-y5y19d` in POWERPC-NOTES.md,
+   where the whole path is written out from a static read of the binary.
 2. **List Manager** — `LNew`, `LAddRow`, `LSetCell`, `LGetSelect`, `LSetSelect`
    and `LScroll`. The archetype and portrait pickers in that dialogue are
    lists, so the two managers land together.
