@@ -3,7 +3,7 @@
 # scripts came out of, which is kept outside this repository; fix it there
 # and re-copy. This repository is retired, so this copy exists only so
 # port/ can run standalone -- do not edit it to diverge.
-# Verify with tools/check_copies.sh ($CYTHERA_TOOLS). Source sha256 57cca4bee875c72005cde04720dc6bd5295e5bcf5cce35116e59a0a1711a38b1.
+# Verify with tools/check_copies.sh ($CYTHERA_TOOLS). Source sha256 920b6bd14bbed71b259bfb6312075c97985c4b67abe6d2701b62b16410c5db85.
 """Census the PowerPC opcodes actually used by Cythera's PEF code section.
 
     python3 tools/opcensus.py build/extract/Cythera.data cythera_symbols.txt
@@ -15,7 +15,7 @@ with its count, which is exactly the interpreter's required scope.
 """
 import collections, re, struct, sys
 
-# Primary opcodes that carry a secondary opcode field, and where it lives.
+# Primary opcodes with a secondary opcode field, and where it lives.
 #   19, 31, 63  -> bits 21..30 (10 bits)
 #   59          -> bits 26..30 (5 bits, but 10-bit read is fine for grouping)
 #   30          -> bits 27..29 (rotate doubleword; 64-bit only)

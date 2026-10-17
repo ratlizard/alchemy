@@ -3,7 +3,7 @@
 # scripts came out of, which is kept outside this repository; fix it there
 # and re-copy. This repository is retired, so this copy exists only so
 # port/ can run standalone -- do not edit it to diverge.
-# Verify with tools/check_copies.sh ($CYTHERA_TOOLS). Source sha256 d1fc1a5a00909d7836348337a3853559d10617007ccbfa4da250b1b14ccce2aa.
+# Verify with tools/check_copies.sh ($CYTHERA_TOOLS). Source sha256 261b26a569c0a7541eff2369798845d9689f3bc1704af8946994345d1052fac8.
 """Simulate PEF relocation for Cythera and validate the result.
 
 Confirms the relocation opcode decoding before it is committed to C++: every
@@ -125,8 +125,8 @@ def main():
                 # below, while relocating 45,122 bytes of the data section
                 # wrongly -- the egg-kind jump table at r2 + 2704 came out
                 # relocated by the data section, 0x700000 above the code
-                # addresses it holds. The port's pef.cpp had the widths
-                # right; grimoire's pefLoad agrees with this byte for byte.
+                # addresses in it. The port's pef.cpp had the widths
+                # right; grimoire's pefLoad matches this byte for byte.
                 skip = (w >> 6) & 0xFF
                 n = w & 0x3F
                 rel += skip * 4
@@ -187,7 +187,7 @@ def main():
             else:
                 raise SystemExit(f'unhandled reloc opcode {op:#04x} '
                                  f'(word {w:04x}) at index {i-1}')
-        print(f"section {sidx}: consumed {i} words (header said {cnt}); "
+        print(f"section {sidx}: consumed {i} words (header gave {cnt}); "
               f"relocAddress ended at {rel:#x} "
               f"(section spans {sec_start:#x}..{sec_start+data['total']:#x}); "
               f"importIndex={imp}/{nsym}")

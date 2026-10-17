@@ -2,7 +2,7 @@
 # scripts came out of, which is kept outside this repository; fix it there
 # and re-copy. This repository is retired, so this copy exists only so
 # port/ can run standalone -- do not edit it to diverge.
-# Verify with tools/check_copies.sh ($CYTHERA_TOOLS). Source sha256 13e6caef0215704b189dad01623e8dbd4c5d303ffd617e0a9afc973b7450e179.
+# Verify with tools/check_copies.sh ($CYTHERA_TOOLS). Source sha256 e2df6daf3ce0faa11b15356c9b4aa3007b752e367d6edd3faab0042020996e13.
 """Make the delvmod package importable on modern Python.
 
 delvmod is a 2014-era Python 2 library. Two things stop it importing on a
@@ -15,7 +15,7 @@ oracle and an oracle you have patched is not one.
     Assembler.__init__, and delv/__init__.py pulls rdasm in -- so importing
     anything at all fails without it. Reading and disassembling archives never
     builds an assembler, so a stub that defers the failure to the point of use
-    keeps the rest of delv working. **This one is still required.**
+    leaves the rest of delv working. **This one is still required.**
   * **inspect.getargspec**, removed in 3.11, which rdasm.py used at import time
     to derive assembler operand rules. The checkout this repository points at
     -- ratlizard/delvmod, the maintainer's fork -- fixes this internally at rdasm.py:65, so
@@ -46,7 +46,7 @@ import os
 import sys
 import types
 
-# getargspec's four fields, under its own names -- delvmod reads .args off the
+# getargspec's four fields, under its field names -- delvmod reads .args off the
 # result in places, so a plain tuple is not a faithful enough stand-in.
 _ArgSpec = collections.namedtuple('ArgSpec', 'args varargs keywords defaults')
 
