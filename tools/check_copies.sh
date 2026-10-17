@@ -4,7 +4,7 @@
 # Every file listed in COPIES.txt is a copy of tools/<name> from the
 # disassembly toolkit these scripts came out of, which is kept outside this
 # repository. Copies are used rather than a submodule because this repository
-# is retired and must stand alone: a session that clones it flat gets no
+# is retired and must stand alone: a session that clones it flat has no
 # siblings, and port/smoke.sh has to run anyway.
 #
 # Point $CYTHERA_TOOLS at that toolkit's tools/ directory to check for drift.

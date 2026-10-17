@@ -9,7 +9,7 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(dirname "$here")"
 
-# Apple's toolchain wants a writable temporary directory for its xcrun cache;
+# Apple's toolchain needs a writable temporary directory for its xcrun cache;
 # without this, ar and ranlib print (harmless but noisy) permission errors.
 export TMPDIR="${TMPDIR:-/tmp}"
 
@@ -17,9 +17,9 @@ export TMPDIR="${TMPDIR:-/tmp}"
 GEN="Unix Makefiles"
 command -v ninja >/dev/null 2>&1 && GEN="Ninja"
 
-# cythera_symbols.txt names the 1877 functions in traces, and is what
+# cythera_symbols.txt has the names of the 1877 functions in traces, and is what
 # tools/opcensus.py and tools/pefdisasm.py read. It is not in this repository
-# -- it was produced once by walking the binary's own traceback tables, and
+# -- it was produced once by walking the binary's traceback tables, and
 # is kept outside this repository with the scripts that need it. Point
 # $CYTHERA_SYMBOLS at it to use it. The port runs perfectly well without it,
 # printing addresses where it would print names, so it is passed only when it
@@ -44,7 +44,7 @@ cmake -S "$here" -B "$here/build" -G "$GEN" -DCMAKE_BUILD_TYPE=RelWithDebInfo \
 cmake --build "$here/build" 2>&1 | grep -vE "xcrun_db|^ar: error|^ranlib: error" || true
 
 # No instruction budget when a person is driving it: the budget exists to stop
-# a headless diagnostic run, and interactively it only decides how many seconds
+# a headless diagnostic run, and interactively it only sets how many seconds
 # of play you get before the port stops for no reason the player can see. The
 # gamma fade made that acute -- it spends five seconds of real time and roughly
 # 1.5 billion instructions before the start screen appears at all, so the old

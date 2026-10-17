@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 // Collects the JavaScript a page actually runs, in document order.
 //
-// The three pages here used to be one HTML file each with one inline <script>,
-// and every harness found that script with the same regular expression. Now
-// that the code shared between them lives in js/*.js, "the script" is several
-// files, and a harness that only reads the inline block silently tests a page
-// with its decoders missing -- which fails in a confusing way rather than an
-// obvious one.
+// Each of the three pages here has one inline <script> and loads the code
+// they share from js/*.js, so "the script" is several files, and a harness
+// that only reads the inline block silently tests a page with its decoders
+// missing -- which fails in a confusing way rather than an obvious one.
 //
 //   import {collectPageScripts, pageSource} from './page_scripts.mjs';
 //   const code = pageSource('explorer.html');   // ready to eval

@@ -6,8 +6,8 @@
 //
 // explorer.html's "Send that disk to mobile.html" writes the disk image into
 // IndexedDB and opens mobile.html, which reads it back out. Four names have to
-// agree for that to work -- the database, its version, the object store and
-// the key -- and a browser says nothing at all when they stop agreeing: the
+// match for that to work -- the database, its version, the object store and
+// the key -- and a browser reports nothing at all when they stop matching: the
 // read returns undefined and the card never appears. That is exactly the
 // arrangement mobile_install_check.mjs exists for, and this is the same
 // answer: read both pages and fail on drift.
@@ -17,8 +17,8 @@
 //
 //   - **The query parameter must not be `disk`.** mobile.html has read
 //     `?disk=` as the system disk to boot ('Mac OS 7.6' by default) since long
-//     before the handoff existed. Putting the handoff on that parameter asks
-//     the emulator for a machine called "handoff", which fails inside the
+//     before the handoff existed. Putting the handoff on that parameter sends
+//     the emulator looking for a machine called "handoff", which fails inside the
 //     iframe where this page cannot see it. It was written that way first.
 //
 //   - **The two stores must be different.** The remembered archive and a disk
@@ -30,12 +30,12 @@
 //   - **The version bump must be additive.** A visitor who has been here
 //     before is on version 1, which has only the archive store, so the upgrade
 //     has to create each store only when it is absent. An upgrade that calls
-//     createObjectStore unconditionally throws ConstraintError and takes the
+//     createObjectStore unconditionally throws ConstraintError and brings the
 //     remembered archive down with it.
 //
 // And the file-loading route itself is pinned, because it rests on one
 // non-obvious parameter. A file on the device can only reach the emulator
-// through infinite-mac's OWN file picker: emulator_load_disk takes a URL that
+// through infinite-mac's file picker: emulator_load_disk accepts only a URL that
 // infinitemac.org's server fetches, so a blob: is useless to it, and a drop
 // belongs to the document being dropped on. On the bare /embed route that
 // picker's control is in the DOM at zero size -- screenSize is the string
@@ -112,7 +112,7 @@ for (const [side, names] of [['explorer.html', viewerSide], ['mobile.html', mobi
 if (failures) { console.log('\nFAIL — the names could not be read; nothing else can be checked'); process.exit(1); }
 
 for (const field of ['db', 'version', 'store', 'key'])
-  check(viewerSide[field] === mobileSide[field], `both pages agree on the ${field}`,
+  check(viewerSide[field] === mobileSide[field], `both pages use the same ${field}`,
         `${JSON.stringify(viewerSide[field])} vs ${JSON.stringify(mobileSide[field])}`);
 
 check(viewerSide.store !== viewerSide.archiveStore,
@@ -164,12 +164,12 @@ check(/id="disk-chip"[^>]*draggable="true"|draggable="true"[^>]*id="disk-chip"/.
       'the card offers a real drag', 'the only route a local file has into the emulator');
 check(/indexOf\.call\(e\.dataTransfer\.types[\s\S]{0,80}'Files'/.test(mobile),
       'the chip feature-detects the drag before starting one',
-      'a browser that refuses items.add(File) would otherwise drag nothing, silently');
+      'a browser that rejects items.add(File) would otherwise drag nothing, silently');
 
 // ---- the file-loading route ------------------------------------------------
 check(/searchParams\.set\('screenSize'/.test(mobile),
-      'the embed URL asks for an explicit screenSize',
-      'without it infinite-mac renders its own Load File control at zero size');
+      'the embed URL requests an explicit screenSize',
+      'without it infinite-mac renders its Load File control at zero size');
 check(/const FRAME_INSET = 11;/.test(mobile),
       'the frame inset is the measured 11px',
       'the screen sits 11px inside a frame of (w+22, h+22)');
@@ -188,7 +188,7 @@ check(/CAN_DRAG/.test(mobile) && /ontouchstart' in window/.test(mobile),
       'the drag is offered only where one exists', 'and the test fails towards touch');
 check(/touchOverlay\.style\.pointerEvents = on \? 'none'/.test(mobile),
       'file mode stands the touch overlay down',
-      'it would otherwise swallow every tap meant for the Mac\'s own control');
+      'it would otherwise swallow every tap meant for the Mac\'s control');
 
 /* Three things about file mode that a browser reports in no way at all, and
    which between them made the control unreachable AND unreadable on the first
@@ -203,14 +203,14 @@ check(/scaleTarget\.style\.transform = 'none'/.test(mobile) &&
       'landed 270px above where it was aimed');
 check(/emulatorWrapper\.style\.zIndex = '2500'/.test(mobile),
       'file mode raises #emulator-wrapper, not just the iframe',
-      '#emulator-wrapper has z-index 1 and is therefore a stacking context: the iframe\'s own ' +
+      '#emulator-wrapper has z-index 1 and is therefore a stacking context: the iframe\'s ' +
       'z-index cannot lift it above a panel outside that context, so the panel pointing at the ' +
       'control was painted over it');
 check(/clipPath = `inset\(/.test(mobile),
       'file mode clips to the control row rather than shrinking the whole frame',
       'fitting the whole 640x1385 screen into a phone made the control about nine pixels tall');
 check(/Math\.max\(1\.4, Math\.min\(3\.2, vw \/ FILE_STRIP_WIDTH\)\)/.test(mobile),
-      'and magnifies it, never shrinks it', 'the floor is above 1, and the cap keeps Load File on screen');
+      'and magnifies it, never shrinks it', 'the floor is above 1, and the cap leaves Load File on screen');
 check(/id="file-banner-zoom"/.test(mobileHtml),
       'there is a way through if the row ever moves',
       'the strip depends on measured constants of someone else\'s UI, so the whole-emulator ' +
@@ -223,14 +223,14 @@ check(/id="file-banner-zoom"/.test(mobileHtml),
 {
   const viewerZip = strConst(viewer, 'ZIP_FOLDER_NAME');
   const mobileZip = strConst(mobile, 'ZIP_FOLDER_NAME');
-  check(viewerZip && viewerZip === mobileZip, 'both pages agree on the zip folder name',
+  check(viewerZip && viewerZip === mobileZip, 'both pages use the same zip folder name',
         `${JSON.stringify(viewerZip)} vs ${JSON.stringify(mobileZip)}`);
   check(new RegExp("dlBlob\\(built\\.blob, ZIP_FOLDER_NAME \\+ '\\.zip'\\)").test(viewer),
         'the zip is named after that folder',
-        'infinite-mac names the unpacked folder after the file');
+        'infinite-mac gives the unpacked folder the file name');
   const zipBody = sliceFunctionish(viewer, 'async function buildForkZip');
   check(/'\.rsrc\/' \+ archiveName/.test(viewer) && /'\.finf\/' \+ archiveName/.test(viewer),
-        'the zip carries .rsrc/ and .finf/ at its root',
+        'the zip has .rsrc/ and .finf/ at its root',
         "infinite-mac's uploadsFromFile only recognises a zip whose entry names START with those");
   check(/const b = new Uint8Array\(32\)/.test(viewer),
         'Finder info is the full 32 bytes', 'FInfo is 16 and FXInfo another 16');
@@ -240,7 +240,7 @@ check(/id="file-banner-zoom"/.test(mobileHtml),
         'the typed zip installer has on error for every try',
         'without it the compile fails with `Expected "on" but found "end"`');
   check(!!zipScript && /with replacing/.test(zipScript),
-        'and replaces silently', 'otherwise the Finder asks and nobody is there to answer');
+        'and replaces silently', 'otherwise the Finder shows a prompt and nobody is there to answer');
 }
 
 /* File mode clips the iframe down to the control row, so while it is up the
@@ -257,7 +257,7 @@ check(/visibilitychange/.test(mobile),
       'a phone browser backgrounds the page rather than blurring it');
 check(/fileModeTimer = setTimeout/.test(mobile),
       'with a timer as the floor',
-      'a browser that reports neither must still come back to the screen on its own');
+      'a browser that reports neither must still come back to the screen by itself');
 
 console.log(failures ? `\nFAIL — ${failures} problem(s)` : '\nok — the handoff, file-loading and zip contracts hold');
 process.exit(failures ? 1 : 0);

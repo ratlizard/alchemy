@@ -6,7 +6,7 @@
 // explorer.html writes a disk image holding an edited Cythera Data and an
 // AppleScript called "Install and Play". mobile.html types those two names at
 // the emulated Finder to select them, and then sends Command-O and Command-R.
-// Neither page can see the other, and nothing in a browser complains when a
+// Neither page can see the other, and nothing in a browser reports an error when a
 // name on one side stops matching the name on the other -- it just selects
 // nothing and the install quietly does nothing at all. That is the same
 // arrangement mobile_undither_check.mjs exists for, and this is the same
@@ -20,8 +20,8 @@
 //     everything else has already worked, so it looks like the install broke
 //     rather than the script.
 //   - `duplicate ... with replacing` is what makes the replace silent. Take it
-//     away and the Finder asks, and there is nobody there to answer.
-//   - the script names the disk it is sitting on, so that name has to be the
+//     away and the Finder shows a prompt, and there is nobody there to answer.
+//   - the script refers to the disk it is sitting on by name, so that name has to be the
 //     one writeHfsImage was given.
 //
 // And it builds a disk the way the page does, so that "the script is on the
@@ -46,7 +46,7 @@ const check = (cond, what, detail) => cond ? ok(what, detail) : fail(what, detai
 const mobile = pageSource(mobilePath);
 const viewer = pageSource(viewerPath);
 
-// ---- what each page says the names are -------------------------------------
+// ---- the names each page uses ---------------------------------------------
 function constOf(source, name) {
   const m = new RegExp(`\\bconst ${name}\\s*=\\s*'([^']*)'`).exec(source);
   return m ? m[1] : null;
@@ -98,7 +98,7 @@ else {
   const shape = steps.filter(([k]) => k !== 'note' && k !== 'wait').map(([k, a]) => `${k}:${a.split(',')[0].trim()}`);
   const want = [
     // Return dismisses the Finder's modal desktop-rebuild alert, which
-    // otherwise holds the keyboard and swallows everything after it; Escape
+    // otherwise captures the keyboard and swallows everything after it; Escape
     // cancels the rename that Return starts when there was no alert.
     "key:'Enter'",
     "key:'Escape'",
@@ -121,7 +121,7 @@ else {
 
 // ---- the script the viewer writes ------------------------------------------
 /* buildInstallScript and its three constants are lifted out of the page and
-   run on their own. Evaluating the whole viewer would need a DOM it has no use
+   run alone. Evaluating the whole viewer would need a DOM it has no use
    for here, and slicing by name means a rename fails this check rather than
    silently testing nothing. */
 function sliceFunction(source, name) {
@@ -156,13 +156,13 @@ if (!builder) {
   const script = peek('buildInstallScript')(viewerNames.archive);
 
   check(script.includes(`disk "${viewerNames.volume}"`),
-        'the script names the disk it is on', `disk "${viewerNames.volume}"`);
+        'the script refers to the disk it is on by name', `disk "${viewerNames.volume}"`);
   check(script.includes(`file "${viewerNames.archive}"`),
         'and the archive it is installing', `file "${viewerNames.archive}"`);
   check(/\btry\b/.test(script) && /\bon error\b/.test(script),
         'try has its on error clause, which this AppleScript requires');
   check(/duplicate .* with replacing/.test(script),
-        'the copy replaces without asking');
+        'the copy replaces without a prompt');
   check(/\bopen theGame\b/.test(script), 'and the game is launched');
   check(!script.includes('\n'), 'lines end with CR, as a classic Mac text file does');
   check(script.split('\r').filter(l => l.startsWith('--')).length >= 3,
@@ -171,8 +171,8 @@ if (!builder) {
 
   // Build the disk the way the page does and read the script back off it.
   const enc = peek('encodeMacRoman');
-  /* The page's own entry list, counted in its source rather than mirrored
-     here: a fixture that says two while the page writes three would pass and
+  /* The page's entry list, counted in its source rather than mirrored
+     here: a fixture that has two while the page writes three would pass and
      prove nothing. */
   // buildEditedDiskImage, not downloadEditedDiskImage: the build was split out
   // when a second caller appeared (the handoff to mobile.html), and both
@@ -216,10 +216,10 @@ if (!builder) {
   }
   /* Two files, no more. A third pushes the catalog past one 512-byte leaf,
      and a multi-leaf volume raises the Finder's modal desktop-file alert on
-     every mount -- which holds the keyboard and stops the install dead. The
+     every mount -- which captures the keyboard and stops the install dead. The
      end-to-end run that found this is why the Read Me is gone and its text
      lives in the script's comments. */
-  check(found.size === 2, 'the disk carries two files, so its catalog fits one leaf node',
+  check(found.size === 2, 'the disk has two files, so its catalog fits one leaf node',
         [...found.keys()].join(', '));
 
   const onDisk = found.get(viewerNames.script);
@@ -236,7 +236,7 @@ if (!builder) {
    open: Cythera dies with "Unable to open RT", which names nothing a person
    could trace back to the viewer. Measured in the emulator against the real
    1.0.4 Cythera Data -- identical data fork, fork present and absent -- so the
-   viewer says so at export time, and this is what keeps it saying so. */
+   viewer warns at export time, and this check ensures it still does. */
 {
   const warner = sliceFunction(viewer, 'missingForkWarning');
   if (!warner) {
@@ -249,10 +249,10 @@ if (!builder) {
     check(call(new Uint8Array(4)) === null, 'an archive with its fork exports without complaint');
     const warning = call(new Uint8Array(0));
     check(typeof warning === 'string' && warning.length > 40,
-          'and one without it says so', warning ? warning.slice(0, 60) + '…' : 'nothing');
+          'and one without it shows a warning', warning ? warning.slice(0, 60) + '…' : 'nothing');
     check(warning && warning.includes('Unable to open RT'),
           'naming the error the game actually gives, so the two can be connected');
-    // Both exports carry the fork, and both must warn -- a .bin installed by
+    // Both exports include the fork, and both must warn -- a .bin installed by
     // hand fails in exactly the same way as a .dsk installed by the script.
     for (const fn of ['buildEditedDiskImage', 'downloadEditedMacBinary']) {
       const body = sliceFunction(viewer, fn);
@@ -275,7 +275,7 @@ if (!builder) {
    patch being wrong rather than the script. */
 {
   // patchPassLines, not buildPatchScript: a patch is typed in passes now, and
-  // each pass is a whole script of its own.
+  // each pass is a whole separate script.
   const patchBody = sliceFunction(mobile, 'patchPassLines');
   check(!!patchBody, 'mobile.html builds a patch script');
   if (patchBody) {

@@ -3,8 +3,8 @@
 //
 //   node utilities/mobile_input_check.mjs mobile.html
 //
-// mobile_api_check.mjs asks whether what the page sends is in the emulator's
-// API. This asks the other half of the question: whether anything is sent at
+// mobile_api_check.mjs checks whether what the page sends is in the emulator's
+// API. This checks the other half of the question: whether anything is sent at
 // all, for each of the ways a person can touch the thing.
 //
 // It was written after the page spent a long time being unusable with a mouse.
@@ -88,7 +88,7 @@ function makeEl(tag, id, doc) {
     hasPointerCapture(pid) { return captured.has(pid); },
     focus() { doc.activeElement = el; }, blur() {}, click() { el.dispatch('click', {}); }, remove() {},
     // Derived from what the page put in style, so the geometry under test is
-    // the page's own rather than this file's idea of it.
+    // the page's rather than this file's idea of it.
     getBoundingClientRect() {
       const own = parseTransform(el.style.transform);
       const w = parseFloat(el.style.width) || el.offsetWidth || 0;
@@ -121,7 +121,7 @@ function buildPage({webgl = true, serviceWorker = null, search = '', isolated = 
 
   for (const m of html.matchAll(/\bid="([^"]+)"/g)) registry.set(m[1], mk('div', m[1]));
   // Elements the markup hides to begin with. Whether the help panel is open
-  // decides where the keyboard goes, so getting this wrong would test nothing.
+  // determines where the keyboard goes, so getting this wrong would test nothing.
   for (const m of html.matchAll(/\bid="([^"]+)"[^>]*\shidden(?=[\s>])/g)) registry.get(m[1]).hidden = true;
   registry.get('modal-input').tagName = 'INPUT';
   registry.get('hidden-keyboard').tagName = 'INPUT';
@@ -200,7 +200,7 @@ function buildPage({webgl = true, serviceWorker = null, search = '', isolated = 
     },
     // With no serviceWorker the page's cross-origin-isolation dance resolves
     // at once and goes straight on to booting the emulator, which is what
-    // every section but the last one wants. The last one passes a stub.
+    // every section but the last one needs. The last one passes a stub.
     navigator: serviceWorker ? {userAgent: 'node', serviceWorker} : {userAgent: 'node'},
     // matches:false is "no hover-capable pointer", i.e. a touch device, which
     // is what this page is for and the branch worth exercising.
@@ -237,7 +237,7 @@ function buildPage({webgl = true, serviceWorker = null, search = '', isolated = 
     reloads, session,
     tick(ms) {
       // A real event loop, not one jump: the clock stops at each callback's
-      // own time, so a callback that schedules another 40ms out gets its turn
+      // scheduled time, so a callback that schedules another 40ms out runs
       // inside the same tick and reads a Date.now() that makes sense.
       const until = clock.now + (ms || 0);
       for (;;) {
@@ -255,7 +255,7 @@ function buildPage({webgl = true, serviceWorker = null, search = '', isolated = 
       api.settle();
       posted.length = 0;
     },
-    // Tell the page what the emulator actually came up with, the way the
+    // Report to the page what the emulator actually came up with, the way the
     // emulator does.
     screen(width, height) {
       api.fireWindow('message', {origin: 'https://infinitemac.org', data: {type: 'emulator_screen', width, height}});
@@ -364,7 +364,7 @@ ok('page initialises', `${boot.glCalls.length} GL calls`);
   finger.move(VIEW_W / 2 + 30, VIEW_H / 2);
   finger.up(VIEW_W / 2 + 30, VIEW_H / 2);
   a.settle();
-  check(a.buttons().join(' ') === 'down0 up0', 'direct: a finger drag holds the button down', a.buttons().join(' '));
+  check(a.buttons().join(' ') === 'down0 up0', 'direct: the button stays down during a finger drag', a.buttons().join(' '));
   check(!!down && near(down.x, 320) && near(down.y, 240 - 12, 1.5),
         'direct: aim sits a little above the fingertip', down ? `(${down.x}, ${down.y})` : 'nothing');
 
@@ -443,7 +443,7 @@ ok('page initialises', `${boot.glCalls.length} GL calls`);
   // makes dragging work; a second finger has to take that press back, or the
   // Mac is left holding the mouse down for the length of the pinch.
   check(landed === 'down0' && handedBack === 'down0 up0',
-        'a second finger takes back the press the first one made', handedBack);
+        'a second finger cancels the press the first one made', handedBack);
   check(b.buttons().length === 0, 'and the pinch itself is not a click', b.buttons().join(' '));
 }
 
@@ -471,11 +471,11 @@ ok('page initialises', `${boot.glCalls.length} GL calls`);
 
   a.clear();
   a.fireDoc('keydown', {code: 'KeyR', key: 'r', ctrlKey: true, target: {tagName: 'BODY'}});
-  check(a.keys().length === 0, 'the browser keeps its own shortcuts', a.keys().join(' '));
+  check(a.keys().length === 0, 'browser shortcuts are not sent to the Mac', a.keys().join(' '));
 
   // macOS swallows the keyup for a key pressed while Command is held, so the
-  // Mac is left holding it. Infinite Mac works around this for its own
-  // keyboard; anything sent through the embed API arrives past that point.
+  // Mac is left holding it. Infinite Mac works around this for its
+  // keyboard; anything sent through the embed API comes in past that point.
   a.clear();
   const meta = {ctrlKey: false, metaKey: true, target: {tagName: 'BODY'}};
   a.fireDoc('keydown', Object.assign({code: 'MetaLeft', key: 'Meta'}, meta));
@@ -513,9 +513,9 @@ ok('page initialises', `${boot.glCalls.length} GL calls`);
 }
 
 /* ---- 10. what the emulated Mac actually ends up seeing ---------------------
-   The checks above ask what the page sends. This one asks what survives.
+   The checks above test what the page sends. This one tests what survives.
 
-   From updateInputBufferWithEvents() in the emulator's own
+   From updateInputBufferWithEvents() in the emulator's
    src/emulator/common/common.ts: everything queued between two of its input
    syncs is collapsed into a single state. The FIRST mousemove of the batch is
    kept and every later one is dropped; each mousedown/mouseup overwrites the
@@ -570,10 +570,10 @@ function buttonStory(states) {
      would swallow a physical mouse click as well, so it is not this page's
      problem to solve.
 
-     GAPS is the other axis, and the one this check used to be blind to. It
-     compared the SHAPE of the story -- down up down up -- and threw the
-     positions away, so a release that reached the Mac at the next tap's
-     position still read as two clicks. That is precisely what Direct mode did
+     GAPS is the other axis. A check that compares only the SHAPE of the
+     story -- down up down up -- and throws the positions away still reads
+     a release that reached the Mac at the next tap's position as two
+     clicks. That is precisely what Direct mode did
      with a gap shorter than BUTTON_GAP_MS: the first tap's release sat in the
      outbox waiting out the gap, and the position flushed ahead of it was
      whichever one was pending by then, so the Mac saw a drag from the first
@@ -583,7 +583,7 @@ function buttonStory(states) {
          + 68ms  mouse_move (542,907) / mouse_up      <- released at tap two
          +140ms  mouse_down                            <- tap two presses
 
-     So the assertion is now that each release lands where its own press did,
+     So the assertion is that each release lands where its press did,
      at every combination of sync window and gap. */
   const PERIODS = [8, 16, 33, 50];
   const GAPS = [0, 25, 40, 69, 120];
@@ -628,15 +628,15 @@ function buttonStory(states) {
 }
 
 // ---- 12. cross-origin isolation, and the reload it costs --------------------
-/* The page will not ask for the emulator until it knows whether it is going to
-   reload, because a reload halfway through downloading a machine and a disk
+/* The page will not request the emulator until it has determined whether it
+   will reload, because a reload halfway through downloading a machine and a disk
    image is the one expensive thing on a phone. What must hold:
 
      - with no service worker at all (a file:// copy, a browser without them),
        the page gives up immediately and boots;
-     - with one, it registers, and reloads exactly once when the worker takes
-       control -- and records that it tried, so a browser that refuses the
-       headers gets a slow page rather than a loop;
+     - with one, it registers, and reloads exactly once when the worker assumes
+       control -- and records that it tried, so a browser that rejects the
+       headers is left with a slow page rather than a loop;
      - a second load in the same tab does not reload again;
      - already isolated means nothing to do at all;
      - ?coi=0 unregisters and stays on the slow path. */
@@ -661,7 +661,7 @@ function swStub() {
   const plain = buildPage();
   await turn(); plain.settle();
   check(!!plain.el('mac-iframe').src && plain.reloads.length === 0,
-        'no service worker: the emulator is asked for at once, with no reload',
+        'no service worker: the emulator is requested at once, with no reload',
         plain.el('mac-iframe').src ? 'iframe.src set' : 'iframe never loaded');
 
   const sw = swStub();
@@ -672,12 +672,12 @@ function swStub() {
         'a service worker is registered', sw.registered.join(', ') || 'none');
   sw.takeControl();
   await turn(); a.settle();
-  check(a.reloads.length === 1, 'the page reloads once when the worker takes control',
+  check(a.reloads.length === 1, 'the page reloads once when the worker assumes control',
         a.reloads.length + ' reload(s)');
   check(a.session.get('cythera-mobile-coi-reload') === '1',
         'and records that it tried, so a browser that will not isolate cannot loop');
 
-  // The reload lands in the same tab, so sessionStorage still says "tried".
+  // The reload lands in the same tab, so sessionStorage still has "tried".
   // Whatever the outcome, it must not go round again.
   const again = swStub();
   const b = buildPage({serviceWorker: again, session: a.session});
@@ -705,7 +705,7 @@ function swStub() {
 }
 
 // ---- 13. what the service worker itself does -------------------------------
-/* Driven directly, with a stub of the worker's own global scope: it is a
+/* Driven directly, with a stub of the worker's global scope: it is a
    separate file with no DOM, and the danger in it is not what it adds but what
    it touches. explorer.html and canvas.html share its scope -- /cythera/ is as
    narrow as a worker registered from mobile.html can be -- and require-corp on
@@ -739,7 +739,7 @@ function swStub() {
     check(!threw, 'the service worker parses and installs', threw ? threw.message : 'clean');
 
     for (const fn of listeners.get('install') || []) fn({});
-    check(scope.skipped === true, 'it takes over immediately (skipWaiting)');
+    check(scope.skipped === true, 'it assumes control immediately (skipWaiting)');
 
     const fetchOf = (url, mode) => {
       let answered = null;
@@ -774,7 +774,7 @@ function swStub() {
 
 // The iframe has to be allowed to inherit the isolation, or the headers above
 // buy nothing: an embedded document is only isolated if its embedder both is
-// isolated and says so on the frame.
+// isolated and declares it on the frame.
 check(/<iframe[^>]*allow="[^"]*cross-origin-isolated/.test(html),
       'the emulator iframe is allowed to inherit the isolation');
 

@@ -13,9 +13,9 @@
 // So this reads the settings and the detector's constants out of the viewer
 // and fails if the shader has drifted from them. What it cannot do here is
 // compare output: that needs a GL context. The port was measured against the
-// viewer's own undither() in headless Chromium, over a checkerboard-dithered
+// viewer's undither() in headless Chromium, over a checkerboard-dithered
 // gradient crossed by one-pixel linework, with stray repair and the 2x
-// supersample switched off in the reference to match what the shader carries:
+// supersample switched off in the reference to match what the shader implements:
 //
 //   mean |difference| 0.035 of 255, worst case 1, borders included.
 //
@@ -34,7 +34,7 @@ const mobile = readFileSync(mobilePath, 'utf8');
 // UD, LINE_REACH and detect() out of it by name. Reading the HTML text alone
 // found nothing and exited 2 the moment the filter moved -- which is the
 // failure page_scripts.mjs exists to prevent, and the reason the rule here is
-// to ask what a page runs rather than what its own file contains.
+// to check what a page runs rather than what its file contains.
 const viewer = pageSource(viewerPath);
 
 let failures = 0;
@@ -56,7 +56,7 @@ for (const m of udSrc.matchAll(/(\w+)\s*:\s*("[^"]*"|[\d.]+|true|false)/g)) {
 console.log(`  viewer UD: sens ${ud.sens}, strength ${ud.strength}, detail ${ud.detail}, ` +
             `filter ${ud.filter}, passes ${ud.passes}, radius ${ud.radius}`);
 
-// ---- what the page carries -------------------------------------------------
+// ---- what the page implements ----------------------------------------------
 const settingsSrc = /const UNDITHER = \{([^}]*)\}/.exec(mobile);
 if (!settingsSrc) { fail('settings block', 'no `const UNDITHER = {...}` in ' + mobilePath); }
 const settings = {};
@@ -115,7 +115,7 @@ check(/0\.5\s*\*\s*c\s*\+\s*0\.5\s*\*/.test(detect), 'the notch is half and half
 check(/for\s*\(int e = 0; e < 4; e\+\+\)/.test(detect), 'over four orthogonal neighbours');
 
 // ---- the stages the page deliberately leaves out ---------------------------
-// mobile.html explains why it does not carry these. If the viewer ever turns
+// mobile.html explains why it leaves these out. If the viewer ever turns
 // one off, that explanation is stale and the shader may be able to gain it.
 check(ud.stray > 0, 'the viewer still does stray-colour repair (the page explains why it does not)',
       'stray ' + ud.stray);

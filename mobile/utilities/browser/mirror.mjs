@@ -10,8 +10,8 @@
 //
 // Two things here were paid for the hard way and must not be simplified away:
 //
-//  * **The method is forwarded.** infinite-mac PUTs `/CD-ROM/<base64>` to tell
-//    its own worker which image to serve; a mirror that turned that into a GET
+//  * **The method is forwarded.** infinite-mac PUTs `/CD-ROM/<base64>` to give
+//    its worker the image to serve; a mirror that turned that into a GET
 //    got `Malformed CD-ROM src chunk` back from the far end, which reads like a
 //    bug in the disk image rather than in the proxy.
 //  * **The method is part of the cache key**, for the same reason -- a cached

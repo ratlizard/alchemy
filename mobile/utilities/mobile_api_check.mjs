@@ -33,7 +33,7 @@ for (const p of [htmlPath, repoPath]) {
 }
 const read = p => readFileSync(`${repoPath}/${p}`, 'utf8');
 
-// ---- the contract, read out of the emulator's own source -------------------
+// ---- the contract, read out of the emulator's source -------------------
 const embedTypes = read('src/embed-types.ts');
 function parseEventUnion(name) {
   const start = embedTypes.indexOf(`export type ${name} =`);
@@ -135,7 +135,7 @@ function run({webgl = true} = {}) {
       win.appendChild(child);
     }
   }
-  // The buttons that carry key codes, taken from the real markup.
+  // The buttons with key codes, taken from the real markup.
   const codeButtons = [...html.matchAll(/class="btn[^"]*"[^>]*data-code="([^"]+)"/g)].map(m => m[1])
     .concat([...html.matchAll(/data-code="([^"]+)"[^>]*class="btn[^"]*"/g)].map(m => m[1]));
   const btnEls = [...new Set(codeButtons)].map(code => {
@@ -180,10 +180,10 @@ function run({webgl = true} = {}) {
   const docListeners = new Map();
   const store = new Map();
   const session = new Map();
-  // A clock the checks drive. Nothing fires unless a check asks it to, as
+  // A clock the checks drive. Nothing fires unless a check advances it, as
   // before -- but the page now coalesces pointer moves to one a frame and
   // spaces its button transitions in milliseconds, so there has to be a clock
-  // to ask. See the note on BUTTON_GAP_MS in the page.
+  // to read. See the note on BUTTON_GAP_MS in the page.
   // A clock that starts at zero is not a browser's clock, and the page reads
   // Date.now() to space its button transitions: with now === 0 the very first
   // press finds "no time has passed since the last one" and waits out the gap,
@@ -215,7 +215,7 @@ function run({webgl = true} = {}) {
     // resolves immediately and goes straight on to booting the emulator.
     // mobile_coi_check.mjs is what drives that path with one present.
     navigator: {userAgent: 'node'},
-    // The page asks whether this device has a hover-capable pointer, to decide
+    // The page checks whether this device has a hover-capable pointer, to determine
     // whether a drag exists at all. Answering "no" here is the honest stub:
     // node is not a mouse, and it exercises the touch branch, which is the one
     // that matters and the one that was wrong.
@@ -251,7 +251,7 @@ function run({webgl = true} = {}) {
   };
   return {
     ctx, posted, threw, registry, btnEls, glCalls, rawPosted,
-    // Frames and timers up to `ms` from now, each at its own time.
+    // Frames and timers up to `ms` from now, each at its scheduled time.
     tick(ms) {
       const until = clock.now + (ms || 0);
       for (;;) {
@@ -284,8 +284,8 @@ const noGl = run({webgl: false});
 if (noGl.threw) {
   fail('page throws without WebGL', noGl.threw.message);
 } else {
-  // The whole shader block used to run unguarded at the top level, so a null
-  // context killed the script before a single control was wired up.
+  // Unguarded at the top level, the shader block would let a null
+  // context kill the script before a single control was wired up.
   const filter = noGl.registry.get('filter-toggle');
   ok('page initialises without WebGL',
      filter.classList.contains('disabled') ? 'filter marked unavailable' : 'no crash');
@@ -304,7 +304,7 @@ if (noGl.threw) {
   const types = a.posted.map(p => p.msg.type);
   // The move is not decoration: a click with no move before it lands at 0,0,
   // which on a Mac is the corner of the menu bar. There is one before each of
-  // the two button transitions, not one for the pair: every transition carries
+  // the two button transitions, not one for the pair: every transition records
   // the position it was queued at, so that a release cannot be dragged to
   // wherever the pointer has gone while it waited out the gap.
   const want = ['emulator_unpause',
@@ -386,7 +386,7 @@ if (!app.peek('GESTURES') || !app.peek('recogniseGesture')) {
                     ['LDR', 'Cast'], ['RDL', 'Talk'], ['DR', 'Look']];
   const wrong = INTENDED.filter(([s, name]) => (recognise(s, false) || {}).name !== name);
   if (wrong.length) fail('documented gestures resolve correctly',
-    wrong.map(([s, n]) => `${s} wanted ${n}, got ${(recognise(s, false) || {name: 'nothing'}).name}`).join('; '));
+    wrong.map(([s, n]) => `${s} expected ${n}, got ${(recognise(s, false) || {name: 'nothing'}).name}`).join('; '));
   else ok('documented gestures resolve correctly', INTENDED.length + ' shapes');
 }
 
@@ -473,7 +473,7 @@ if (!app.peek('buildEmbedUrl')) {
 
 // ---- 7. speeds ------------------------------------------------------------
 if (!app.peek('SPEEDS')) {
-  fail('speed table', 'no SPEEDS table to compare against the emulator\'s own');
+  fail('speed table', 'no SPEEDS table to compare against the emulator\'s');
 } else {
   const speeds = app.peek('SPEEDS');
   const wrong = speeds.filter(([v, label]) => MACEMU_SPEEDS.get(v) !== label);

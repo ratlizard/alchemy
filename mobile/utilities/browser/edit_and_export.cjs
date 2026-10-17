@@ -1,5 +1,5 @@
 // Drive explorer.html for real: load an archive, change one word of a resource
-// through the page's own Edit Bytes, and press the page's own disk-image export
+// through the page's Edit Bytes, and press the page's disk-image export
 // button. Nothing here reaches inside the page except to read what it is
 // showing -- the edit goes into the textarea and the download comes out of the
 // button, so what this produces is what a visitor would produce.
@@ -10,7 +10,7 @@
 //
 // The replacement must be the same length as the needle. That is not a
 // limitation of the page -- writeDelverArchive is happy to resize a resource --
-// but a same-length edit keeps this driver's arithmetic trivial and makes the
+// but a same-length edit leaves this driver's arithmetic trivial and makes the
 // result easy to check by eye.
 //
 // The resource ids worth knowing: 0x0240 is the opening dream, whose first
@@ -47,8 +47,8 @@ if (NEEDLE.length !== REPLACE.length) {
     // and the deep link opens the resource so Edit Bytes has something to edit.
     await page.goto(`${BASE}?cache=skip&src=${encodeURIComponent(SRC)}#${RESID.toString(16)}`,
                     { waitUntil: 'load', timeout: 120000 });
-    // fileBytes is a top-level const, so it is not a property of window; ask
-    // the page for it through its own scope.
+    // fileBytes is a top-level const, so it is not a property of window; it is
+    // read by code evaluated in the page's scope.
     await page.evaluate(() => {
         window.__archiveSize = () => (typeof fileBytes !== 'undefined' && fileBytes) ? fileBytes.length : 0;
     });
@@ -64,7 +64,7 @@ if (NEEDLE.length !== REPLACE.length) {
     await page.locator('#editBytesBtn').click();
     await page.waitForTimeout(800);
 
-    // The box holds the resource's PLAINTEXT as hex, whatever it is stored as
+    // The box shows the resource's PLAINTEXT as hex, whatever it is stored as
     // on disk; applyResourceEdit re-encrypts on the way back out.
     const before = await page.locator('#editBytesText').inputValue();
     const bytes = before.split(/\s+/).map(h => parseInt(h, 16));

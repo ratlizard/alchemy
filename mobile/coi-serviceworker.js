@@ -6,13 +6,13 @@
    infinite-mac runs its emulator in a Worker and talks to it through a
    SharedArrayBuffer. `SharedArrayBuffer` only exists in a document that is
    *cross-origin isolated*, and when it is missing the emulator falls back to
-   a message-passing path that its own console warns about:
+   a message-passing path that its console warns about:
 
        SharedArrayBuffer is not available, fallback more will be used.
        Performance may be degraded.
 
    "Degraded" is an understatement. Measured on the real emulator (Mac OS 7.6
-   on a Quadra 650, All Out, reading `currentIPMS` out of the emulator's own
+   on a Quadra 650, All Out, reading `currentIPMS` out of the emulator's
    stats over a 30-second window after boot):
 
        SharedArrayBuffer available     56,233 instructions/ms
@@ -23,7 +23,7 @@
    infinitemac.org directly. Two other suspects were measured at the same time
    and are innocent: `screen_update_messages` costs nothing detectable (1,896
    with it on against 1,892 with it off), and neither does the tall emulated
-   screen this page asks for (640x1385 against 640x480 was within noise).
+   screen this page requests (640x1385 against 640x480 was within noise).
 
    WHY A SERVICE WORKER
 
@@ -38,7 +38,7 @@
    require-corp parent embed it). This page has to send them too, and this page
    is served by GitHub Pages, which offers no way to set a header on a file.
 
-   A service worker is the way out, because it can re-serve its own origin's
+   A service worker is the way out, because it can re-serve its origin's
    responses with headers added. That is the whole of this file. The technique
    is gzuidhof/coi-serviceworker's; the code is not, and the scoping below is
    deliberately narrower than that project's.
@@ -54,7 +54,7 @@
    would then start failing. A fetch handler that returns without calling
    respondWith leaves the request entirely alone, so those two pages go over
    the network exactly as they did before, and only mobile.html -- which loads
-   no subresource at all except the emulator iframe -- gets the headers.
+   no subresource at all except the emulator iframe -- is served with the headers.
 
    Nothing here is required for the page to work. If service workers are
    unavailable (a `file://` copy on a USB stick, a browser with them disabled,

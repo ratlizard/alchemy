@@ -29,9 +29,9 @@ BUDGET=3400000000
 out="$here/build/smoke"
 mkdir -p "$out"
 
-# cythera_symbols.txt names the 1877 functions in traces, and is what
+# cythera_symbols.txt has the names of the 1877 functions in traces, and is what
 # tools/opcensus.py and tools/pefdisasm.py read. It is not in this repository
-# -- it was produced once by walking the binary's own traceback tables, and
+# -- it was produced once by walking the binary's traceback tables, and
 # is kept outside this repository with the scripts that need it. Point
 # $CYTHERA_SYMBOLS at it to use it. The port runs perfectly well without it,
 # printing addresses where it would print names, so it is passed only when it
@@ -79,7 +79,7 @@ run "$out/support" run --dump-screen "$out/screen.bin"
 # A second run drives the start screen: clicking New Game must reach the game's
 # own Standard File call and come back with a player file to create. Pass
 # 600000 is comfortably after the start screen appears, and the item numbers
-# are the game's own T7Widget layout, not DITL 128 -- see POWERPC-NOTES.md.
+# are the game's T7Widget layout, not DITL 128 -- see POWERPC-NOTES.md.
 echo "==> running again, clicking New Game"
 run "$out/newgame" newgame --click-at-pass 600000:245,196
 
@@ -106,7 +106,7 @@ check "reached the main event loop (passes=${passes:-0})" \
       "$([[ "${passes:-0}" -gt 1000 ]] && echo ok)"
 
 launched=$(grep -c "AppleEvent] dispatching" "$out/run.err" || true)
-check "the launch event reached the application's own handler" \
+check "the launch event reached the application's handler" \
       "$([[ "$launched" -ge 1 ]] && echo ok)"
 
 colours=$(python3 - "$out/smoke-screen.png" <<'PY'
@@ -120,14 +120,14 @@ except Exception:
 PY
 )
 # The port now runs past the splash to Cythera's start screen, which is lit by
-# candlelight and so carries far fewer distinct colours than the title art did.
-# What the count still proves is the thing worth proving: the game's own artwork
+# candlelight and so has far fewer distinct colours than the title art did.
+# What the count still proves is the thing worth proving: the game's artwork
 # reached the framebuffer, rather than a blank or single-colour screen.
-check "the game's own artwork was drawn (distinct colours=$colours)" \
+check "the game's artwork was drawn (distinct colours=$colours)" \
       "$([[ "$colours" -gt 40 ]] && echo ok)"
 
 # Text rendering cannot be seen in the screenshot yet, because the game stops
-# at its splash before drawing a character. Check it against the game's own
+# at its splash before drawing a character. Check it against the game's
 # demand instead: every 'TxSt' style resource must resolve to a real strike.
 font_out=$("$here/build/cyt_font_test" "$extract/Cythera.rsrc" \
            "$extract/Cythera Data.rsrc" 2>&1)
@@ -155,8 +155,8 @@ no_fork=$(grep -c "no resource fork" "$out/run.err" || true)
 check "the game's preferences were written and read back (${pref_count:-0} saved)" \
       "$([[ "${pref_count:-0}" -ge 1 && "$no_fork" == "0" ]] && echo ok)"
 
-# Clicking New Game runs the game's own widget layer into TDelverApp::NewGame,
-# which asks Standard File where to put the player. The port answers from the
+# Clicking New Game runs the game's widget layer into TDelverApp::NewGame,
+# which queries Standard File for where to put the player. The port answers from the
 # support directory, and the proof is that the game went on to create the file:
 # a document of type 'DelP', named by the game rather than by this script.
 player=""

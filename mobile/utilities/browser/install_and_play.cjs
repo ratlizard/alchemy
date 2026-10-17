@@ -1,7 +1,7 @@
 // Drop a .dsk exported by explorer.html onto mobile.html's emulator, press the
-// page's own Install button, and then take Cythera as far as the opening
+// page's Install button, and then take Cythera as far as the opening
 // narration -- which is where an edit made in the viewer becomes visible in the
-// game's own voice. Every click goes through mobile.html's own pointer path, so
+// game itself. Every click goes through mobile.html's pointer path, so
 // anything that works here works for a finger.
 //
 // Read utilities/browser/README.md before changing the waits or the
@@ -23,7 +23,7 @@ const OUT = process.env.OUT || '.';
 const BOOT_MS = Number(process.env.BOOT_MS || 45000);
 const INSTALL_MS = Number(process.env.INSTALL_MS || 70000);
 
-// Where the game's own buttons are, in the emulated screen's pixels. Cythera
+// Where the game's buttons are, in the emulated screen's pixels. Cythera
 // runs at 640x480; these are converted to browser coordinates at run time, so
 // the window may be any size. See the table in README.md.
 const NEW_GAME = [244, 195];
@@ -34,13 +34,13 @@ const ARCHETYPE_OK = [414, 414];
         executablePath: process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
         args: ['--no-sandbox', '--enable-unsafe-swiftshader'],
     });
-    // 800x600 is not arbitrary. mobile.html asks for a tall screen and
+    // 800x600 is not arbitrary. mobile.html requests a tall screen and
     // infinite-mac gives back one that fits the window, so the emulated screen
     // ends up 640 x (viewportHeight * 640 / viewportWidth) -- at 800x600 that
-    // is exactly 640x480, which is the size Cythera's own layout was measured
+    // is exactly 640x480, which is the size Cythera's layout was measured
     // at. Change the viewport and the emulated screen changes with it: the
     // start screen re-centres on the taller desktop and every coordinate below
-    // moves. The check after boot says so out loud rather than missing quietly.
+    // moves. The check after boot reports that rather than missing quietly.
     const ctx = await browser.newContext({
         viewport: { width: 800, height: 600 }, deviceScaleFactor: 1, hasTouch: true });
     const page = await ctx.newPage();
@@ -59,7 +59,7 @@ const ARCHETYPE_OK = [414, 414];
     };
 
     // #scale-target *is* the emulated screen: its style width/height are what
-    // the emulator reported, and its rect carries the fit-to-window scale. That
+    // the emulator reported, and its rect includes the fit-to-window scale. That
     // is enough to go the other way, from an emulated pixel to a browser one.
     const toBrowser = ([ex, ey]) => page.evaluate(([x, y]) => {
         const el = document.getElementById('scale-target');
@@ -76,7 +76,7 @@ const ARCHETYPE_OK = [414, 414];
     });
 
     // A press and a release with nothing between is not a click as far as the
-    // Toolbox is concerned -- Cythera's own buttons take it about half the
+    // Toolbox is concerned -- Cythera's buttons accept it about half the
     // time, and the Standard File dialog's TrackControl almost never. Hold it.
     async function click(emu, hold = 350) {
         const p = await toBrowser(emu);
@@ -111,7 +111,7 @@ const ARCHETYPE_OK = [414, 414];
             console.log(`  ${label}: click ${i} -> lightness ${l.toFixed(3)}`);
             if (want(l)) return true;
             // The first click of a session can be spent activating Cythera:
-            // after the installer runs, AppleScript's own application is
+            // after the installer runs, AppleScript's application is
             // frontmost. So this retries rather than assuming one is enough.
         }
         return false;
@@ -129,8 +129,8 @@ const ARCHETYPE_OK = [414, 414];
         console.log('  ! expected 640x480 -- the coordinates below were measured there,\n'
                   + '    and Cythera re-centres its start screen on a screen of another shape');
 
-    // Dropping onto infinite-mac's own document is the supported way in; the
-    // embed API's load_disk takes a URL its worker fetches server-side, which
+    // Dropping onto infinite-mac's document is the supported way in; the
+    // embed API's load_disk accepts only a URL its worker fetches server-side, which
     // no local file can satisfy. See CLAUDE.md.
     await frame().evaluate(([name, bytes]) => {
         const dt = new DataTransfer();

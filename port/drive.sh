@@ -12,7 +12,7 @@
 # is *kept* between runs, so a player file created by one run is there for the
 # next one to open; pass --fresh to start from nothing.
 #
-# The start screen's item numbers are the game's own T7Widget layout, not those
+# The start screen's item numbers are the game's T7Widget layout, not those
 # in DITL 128 -- see POWERPC-NOTES.md for the map.
 set -uo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,9 +33,9 @@ cmake -S "$here" -B "$here/build" -G "$GEN" -DCMAKE_BUILD_TYPE=RelWithDebInfo \
 cmake --build "$here/build" 2>&1 \
   | grep -vE "xcrun_db|^ar: error|^ranlib: error" | grep -E "error|warning" || true
 
-# cythera_symbols.txt names the 1877 functions in traces, and is what
+# cythera_symbols.txt has the names of the 1877 functions in traces, and is what
 # tools/opcensus.py and tools/pefdisasm.py read. It is not in this repository
-# -- it was produced once by walking the binary's own traceback tables, and
+# -- it was produced once by walking the binary's traceback tables, and
 # is kept outside this repository with the scripts that need it. Point
 # $CYTHERA_SYMBOLS at it to use it. The port runs perfectly well without it,
 # printing addresses where it would print names, so it is passed only when it
