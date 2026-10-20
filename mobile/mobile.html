@@ -65,13 +65,13 @@
            box and offset into it -- see positionIframe(). */
         #scale-target { transform-origin: top left; position: absolute; top: 0; left: 0; overflow: hidden; }
         #mac-iframe, #gl-canvas, #touch-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; display: block; }
-        /* File mode: infinite-mac's own page, filling the window, so its own
-           Load File control can be tapped. Nothing else on this page is in the
+        /* File mode: infinite-mac's page, filling the window, so the
+           Load File control on it can be tapped. Nothing else on this page is in the
            way while it is up. */
-        /* File mode shows a magnified STRIP of the emulator's own control row,
+        /* File mode shows a magnified STRIP of the emulator's control row,
            not the whole emulator. Scaling the whole frame to fit the window
            made the control about nine pixels tall -- unreadable, and on a
-           phone it landed under the browser's own toolbar. So the iframe is
+           phone it landed under the browser's toolbar. So the iframe is
            scaled UP, translated so the row lands in the strip, and clipped to
            the row with clip-path (which clips hit-testing too, so taps outside
            it fall through to the panel behind). See setFileMode(). */
@@ -110,8 +110,8 @@
         #mac-iframe { image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; image-rendering: pixelated; }
         #gl-canvas { pointer-events: none; display: none; }
         #touch-overlay { z-index: 10; touch-action: none; pointer-events: none; }
-        /* The emulated Mac draws its own cursor inside the screen, so the
-           browser's arrow on top of it gives you two pointers that disagree.
+        /* The emulated Mac draws a cursor inside the screen, so with the
+           browser's arrow on top of it there are two pointers in two places.
            It is hidden while the pointer maps straight onto the screen, and
            shown again in Pan View, where the emulated cursor stays on the
            crosshair and the real one is what you drag the view with. */
@@ -343,12 +343,12 @@
                 <div class="btn settings-btn" id="filter-toggle"><span class="emoji">📺</span>Crisp</div>
                 <div class="btn settings-btn" id="pause-btn"><span class="emoji">⏸️</span>Pause</div>
                 <div class="btn settings-btn" id="speed-btn"><span class="emoji">⚡</span>4x</div>
-                <!-- The button that used to sit here said "Audio" and sent
+                <!-- Until October 2026 a button here, labelled "Audio", sent
                      emulator_mute / emulator_set_volume. Neither exists: the
                      embed API is emulator_pause/unpause, mouse, key and
                      load_disk, and there is no volume setting. The messages
                      were dropped on the floor and the button only ever changed
-                     its own label. Fullscreen is something the page can
+                     its label. Fullscreen is something the page can
                      actually do. -->
                 <div class="btn settings-btn" id="fullscreen-btn"><span class="emoji">⛶</span>Full</div>
                 <div class="btn settings-btn" id="disk-btn"><span class="emoji">💿</span>Disk</div>
@@ -374,17 +374,17 @@
             window by its <b>≡</b> header, resize it from the corner, or press <b>Gestures</b> in
             its header to swap the buttons for a thumb control. The settings panel moves the same
             way — drag its <b>≡</b> bar to put it somewhere it is not in the way, or tap the bar
-            to fold it down to a strip. <b>Pads</b> hides both floating windows, which is what you
-            want once you are using a keyboard; <b>Reset</b> puts everything back where it started.
+            to fold it down to a strip. <b>Pads</b> hides both floating windows, for when you
+            are using a keyboard; <b>Reset</b> puts everything back where it started.
             Where you leave them is remembered on this device.</p>
             <ul id="gesture-legend"></ul>
 
             <h3>Touching the screen</h3>
             <p>These three settings describe what a <i>finger</i> does. <b>Direct</b> puts the
             pointer where your finger is — best for the game world. <b>Trackpad</b> moves the
-            pointer relatively and holds for 0.4 s to start a drag — best for menus and small
-            targets. <b>Pan View</b> keeps the pointer on the crosshair and moves the view
-            instead. Two fingers pinch to zoom anywhere, and a two-finger tap is a right-click.</p>
+            pointer relatively, and a 0.4 s hold starts a drag — best for menus and small
+            targets. With <b>Pan View</b> the pointer stays on the crosshair and the view
+            moves instead. Two fingers pinch to zoom anywhere, and a two-finger tap is a right-click.</p>
 
             <h3>Mouse and keyboard</h3>
             <p>A mouse already points, so it is always Direct — the pointer inside the Mac
@@ -394,32 +394,32 @@
             desktop half of the pinch.</p>
             <p>Your keyboard is passed straight to the emulated Mac, so Cythera's numeric keypad
             and its letter commands work as they did on the original — the floating windows are
-            for when you have no keyboard, not instead of one. The browser keeps <code>F5</code>,
-            <code>F11</code>, <code>F12</code> and its own reload/new-tab/close shortcuts.
+            for when you have no keyboard, not instead of one. <code>F5</code>, <code>F11</code>,
+            <code>F12</code> and the browser's reload/new-tab/close shortcuts still go to the browser.
             Everything on this page can also be reached with Tab and Enter.</p>
 
             <h3>The picture</h3>
-            <p><b>Crisp</b> shows the emulator's own pixels, unaltered. <b>Undith</b> runs the
+            <p><b>Crisp</b> shows the emulator's pixels, unaltered. <b>Undith</b> runs the
             same undither <a href="explorer.html">the data viewer</a> uses on the
             game's artwork. Mac OS draws a shade it has no palette entry for as a checkerboard
             of two colours it does have; this reads that pattern back as the tone it was
-            standing in for, and can tell it apart from linework, so a one-pixel highlight
+            standing in for, and can distinguish it from linework, so a one-pixel highlight
             survives where a blur would have taken it. It needs WebGL.</p>
 
             <h3>Loading your own Cythera</h3>
-            <p><b>Open</b> takes a file from this device — a disk image, an
+            <p><b>Open</b> is for a file on this device — a disk image, an
             <code>.hqx</code>, anything. So does dropping a file anywhere on this page, and so
             does <b>Send that disk to mobile.html</b> in the data viewer, which hands over an
-            edited archive as a disk without going through your Downloads folder at all. However
-            it arrives, it lands in a card at the bottom of the screen with one step left:
+            edited archive as a disk without going through your Downloads folder at all. Whichever
+            way it comes, it lands in a card at the bottom of the screen with one step left:
             <b>drag the card onto the screen</b>.</p>
             <p><b>File</b> is the one that works on a phone. It hands the whole window to the
-            emulator's own page for a moment so you can tap its <b>Load File</b> control, which
+            emulator's page for a moment so you can tap its <b>Load File</b> control, which
             opens your Files app. Nothing restarts and nothing running is lost. The file has to
             be saved to the device first, which is what <b>Save the file</b> on the card is for —
             the Mac's picker reads your file system, not this page's memory.</p>
             <p>Why the detour, rather than this page simply loading the file: the emulator will
-            take a disk from a URL, but infinitemac.org's own server is what fetches that URL, not
+            take a disk from a URL, but infinitemac.org's server is what fetches that URL, not
             your browser, so it can never see a file on your device. The only other route is a
             real drop onto the emulator, and a drop belongs to the page being dropped on, which
             is infinitemac.org's and not this one — no page can start that drop for you, and on a
@@ -430,9 +430,9 @@
             <code>Cythera.hqx</code> and <code>Cythera&nbsp;Data.hqx</code> in this project's
             <code>sources/</code> folder, is copied into the emulated Mac's <i>Downloads</i>
             folder for StuffIt Expander to unpack. This is a desktop-only path: it is the
-            emulator's own file drop, and phones have nothing to drag with.</p>
+            emulator's file drop, and phones have nothing to drag with.</p>
             <p><b>Disk</b> loads a disk image from a URL. The URL has to be reachable from the
-            public internet, because infinitemac.org's own server fetches it in ranges — it is not
+            public internet, because infinitemac.org's server fetches it in ranges — it is not
             your browser doing the download, so a <code>file://</code> path or a private address
             will not work.</p>
             <p>The same archive this emulator runs can be taken apart, resource by resource, in
@@ -441,14 +441,14 @@
             <p><b>Playing your own edits, in two moves.</b> The viewer can edit a resource and
             write the whole archive back out, and its <i>Data file</i> menu hands you the result
             as a <code>.dsk</code> disk image. Drag that onto the emulator, then press
-            <b>Install</b> in this panel. The disk carries an AppleScript as well as the archive;
+            <b>Install</b> in this panel. There is an AppleScript on the disk as well as the archive;
             Install types at the emulated Finder — no pointer, so nothing depends on where the
             windows are — until Script Editor is running it, and the script finds the folder
             holding the Cythera application on any mounted disk, replaces the
-            <code>Cythera Data</code> in it, and starts the game. It takes about forty seconds
-            and the toast says where it has got to.</p>
-            <p>It types, so leave the Finder in front while it runs; whatever is frontmost gets
-            the keystrokes. If you would rather do it by hand, everything it does is a drag from
+            <code>Cythera Data</code> in it, and starts the game. The whole thing is about forty
+            seconds, and the toast shows how far it has got.</p>
+            <p>It types, so leave the Finder in front while it runs; the keystrokes go to whatever
+            is frontmost. If you would rather do it by hand, everything it does is a drag from
             the export disk's window into the game's folder, and the script is readable — open
             <b>Install and Play</b> on the disk and Script Editor shows it. Mac OS may say it
             could not rebuild the export disk's desktop file; the disk is read-only, that is what
@@ -566,14 +566,14 @@
     const speedName = v => (SPEEDS.find(([s]) => s === v) || [v, String(v)])[1];
 
     /* ---- SharedArrayBuffer, and the reload that buys it -------------------
-       `coi-serviceworker.js` explains what this is for and carries the
+       `coi-serviceworker.js` explains what this is for, with the
        measurements: without cross-origin isolation the emulator runs at about
        1/30th of its speed, and that is the whole of why this page felt slower
        than infinitemac.org itself. The worker adds the two headers that this
        origin cannot otherwise send.
 
        Isolation is decided by the headers on the *navigation response*, so a
-       page that registers the worker during its own load is already too late:
+       page that registers the worker while it loads is already too late:
        it has to come back once through a worker that is now controlling it.
        That reload happens on the first visit only -- afterwards an activated
        worker controls the navigation from the start and this returns
@@ -582,8 +582,8 @@
        Two things keep it from being a hazard. `?coi=0` unregisters and stays
        on the slow path, which is the escape hatch if the worker ever misbehaves
        in a browser nobody here has. And the reload is attempted once per tab:
-       if it comes back still not isolated -- some browsers refuse the headers,
-       some refuse the worker -- the flag stops it looping and the page simply
+       if it comes back still not isolated -- some browsers ignore the headers,
+       some block the worker -- the flag stops it looping and the page simply
        runs slowly, which is what it did before.
 
        The emulator is not started until this settles, so the first visit does
@@ -605,11 +605,11 @@
                 .catch(() => {});
         }
         if (window.crossOriginIsolated) return Promise.resolve();   // the worker is already doing its job
-        if (coiTried()) return Promise.resolve();                   // tried this tab and it did not take
+        if (coiTried()) return Promise.resolve();                   // already tried in this tab, without success
         return new Promise(resolve => {
             let done = false;
             const finish = () => { if (!done) { done = true; resolve(); } };
-            // A worker that never activates must not hold the page hostage.
+            // A worker that never activates must not leave the page waiting for ever.
             setTimeout(finish, 4000);
             navigator.serviceWorker.addEventListener('controllerchange', () => {
                 if (done) return;
@@ -650,7 +650,7 @@
 
            On the bare /embed route infinite-mac sets screenSize to the string
            "embed", which puts its ScreenFrame in fullscreen-bezel mode, and
-           that mode sets --screen-controls-display: none. Its own **Load
+           that mode sets --screen-controls-display: none. Its **Load
            File** control -- the one that opens a file picker, the only way a
            file on this device can reach the emulator at all -- is in the DOM
            with zero size and cannot be tapped.
@@ -658,7 +658,7 @@
            Passing a WIDTHxHEIGHT instead makes screenSize an object rather
            than the string "embed", the bezel becomes an ordinary one, and that
            control is rendered and tappable. Nothing else about the machine
-           changes: the emulator comes up at exactly the size asked for, which
+           changes: the emulator comes up at exactly the size requested, which
            is the size this page was going to be given anyway.
 
            What does change is the layout INSIDE the iframe, and it is
@@ -666,7 +666,7 @@
            (w+22) x (h+22) and the screen sits 11px inside it. positionIframe()
            below shifts the iframe by that much so the emulated screen still
            lands exactly on #scale-target, and the controls -- which hang below
-           the frame -- are clipped until the File button asks for them. */
+           the frame -- are clipped until the File button shows them. */
         u.searchParams.set('screenSize', baseWidth + 'x' + baseHeight);
         u.searchParams.set('settings', JSON.stringify({
             swapControlAndCommand: false,
@@ -680,9 +680,9 @@
 
     // ---- talking to the emulator ---------------------------------------
     // Messages sent before the emulator has installed its listener are lost.
-    // Nothing used to wait for that, so a fast tap on TAP TO START threw the
-    // unpause away and the screen sat there. Anything sent early is now held
-    // and flushed when emulator_loaded arrives.
+    // Until October 2026 nothing waited for that, so a fast tap on TAP TO START threw the
+    // unpause away and the screen sat there. Anything sent early is held
+    // and flushed when emulator_loaded comes in.
     let emulatorReady = false;
     let pendingMessages = [];
 
@@ -712,9 +712,9 @@
         } else if (e.data.type === 'emulator_screen') {
             // The only place the emulated screen's real size is ever stated.
             // Every touch and every click is turned into a coordinate on that
-            // screen, so a page that guesses it wrong puts the pointer
+            // screen, so a page with the size wrong puts the pointer
             // somewhere else entirely -- which is what happened whenever the
-            // emulator settled on a resolution other than the one asked for.
+            // emulator settled on a resolution other than the one requested.
             if (e.data.width && e.data.height) applyScreenSize(e.data.width, e.data.height);
             drawScreen(e.data);
         }
@@ -726,8 +726,8 @@
         // A click to wake the emulated Mac up. It has to happen *somewhere*,
         // and with no move first that somewhere is 0,0 -- the corner of the
         // menu bar, so starting the game pulled down the Apple menu.
-        // Through the outbox, not posted raw: it is what puts the move ahead
-        // of the press and keeps the press and its release in separate sync
+        // Through the outbox, not posted raw: that way the move goes ahead
+        // of the press, and the press and its release fall in separate sync
         // windows. Posting these directly would race the queued move and put
         // the click back at 0,0.
         setCursor(screenWidth / 2, screenHeight / 2);
@@ -745,13 +745,13 @@
     // ---- geometry ------------------------------------------------------
     // The emulated screen's resolution is fixed when the machine boots, from
     // the iframe's size, so baseWidth/baseHeight must not change afterwards.
-    // Only the CSS scale follows the window -- which it now does: these were
+    // Only the CSS scale follows the window, as it does since October 2026: these were
     // computed once at load, so rotating a phone left every touch coordinate
     // mapped to the wrong place on the emulated screen.
     const baseWidth = 640;
     const baseHeight = Math.round(baseWidth * (window.innerHeight / window.innerWidth));
     // What the machine actually came up with. It starts as the size that was
-    // asked for and is corrected by the first frame the emulator reports.
+    // requested and is corrected by the first frame the emulator reports.
     let screenWidth = baseWidth, screenHeight = baseHeight;
     let cssScale = 1;
     scaleTarget.style.width = `${baseWidth}px`;
@@ -760,13 +760,13 @@
 
     /* The iframe is bigger than the box it sits in, and offset into it.
 
-       Asking for an explicit screenSize (see buildEmbedUrl) is what makes
-       infinite-mac's own Load File control exist, and it also gives its
+       An explicit screenSize (see buildEmbedUrl) is what makes
+       infinite-mac's Load File control exist, and it also gives its
        ScreenFrame an ordinary bezel: measured across six iframe sizes, the
        frame is always (screen + 22) square with the screen 11px inside it, and
        the frame is left-anchored and vertically centred. So the iframe is made
        exactly frame-sized and pulled up and left by 11, which puts the
-       emulated screen on #scale-target's own origin -- the same pixel-for-pixel
+       emulated screen on #scale-target's origin -- the same pixel-for-pixel
        mapping the coordinate arithmetic has always assumed, unchanged.
 
        The controls hang below the frame, outside the iframe, so they are
@@ -825,7 +825,7 @@
         post({ type: isKeyDown ? 'emulator_key_down' : 'emulator_key_up', code: code });
     }
 
-    // emulator_mouse_move carries an absolute position *and* a delta. Basilisk
+    // An emulator_mouse_move message has an absolute position *and* a delta. Basilisk
     // II -- the Quadra 650's emulator -- reads the absolute pair, which is why
     // sending only x/y worked, but the deltas are part of the message and the
     // machines that are relative-only (Previous, DingusPPC, PearPC) read
@@ -833,7 +833,7 @@
     // can point at one of those without the pointer going dead.
     /* Everything this page sends between two of the emulator's input syncs is
        collapsed into ONE state before the emulated Mac ever sees it. From
-       updateInputBufferWithEvents() in the emulator's own common.ts: the FIRST
+       updateInputBufferWithEvents() in the emulator's common.ts: the FIRST
        mousemove of a batch is kept and every later one is dropped, and each
        mousedown/mouseup overwrites the last, because what reaches the Mac is a
        button LEVEL and not an edge.
@@ -844,8 +844,8 @@
          the level never changes and the click simply does not happen;
 
          a release and the NEXT press, inside one window, lose the release --
-         the level stays down, so the Mac believes the button has been held
-         since the previous tap and the cursor arriving somewhere else is a
+         the level stays down, so to the Mac the button has been held
+         since the previous tap and the cursor reaching somewhere else is a
          DRAG from there to here.
 
        That is why Direct mode dragged in random directions on a tap: it is
@@ -853,12 +853,12 @@
        nothing in between, so both collapses were live. The other modes went
        through clickOnce(), whose 50ms straddled a sync window by luck.
 
-       So button transitions are spaced out in time here, and every transition
-       carries the position with it. There is no batch a transition can share
-       with its own opposite.
+       So button transitions are spaced out in time here, and the position goes
+       with every transition. There is no batch a transition can share
+       with its opposite.
 
-       "Carries the position with it" is literal, and it was not always so.
-       The outbox used to hold only {button, down} and flush whatever position
+       "The position goes with every transition" is literal, and it was not always
+       so. Until October 2026 the outbox had only {button, down} and flushed whatever position
        happened to be pending when the transition's turn came round -- which
        is the position of wherever the finger is NOW, not where it was when
        that transition was queued. Tapping twice in quick succession therefore
@@ -893,7 +893,7 @@
 
     function postMove(x, y) {
         const rx = Math.round(x), ry = Math.round(y);
-        // emulator_mouse_move carries an absolute position *and* a delta.
+        // An emulator_mouse_move message has an absolute position *and* a delta.
         // Basilisk II -- the Quadra 650's emulator -- reads the absolute pair,
         // which is why sending only x/y worked, but the deltas are part of the
         // message and the machines that are relative-only (Previous,
@@ -915,19 +915,19 @@
     function moveMouse(x, y) {
         pendingMove = {x: x, y: y};
         // While a button transition is queued the wire belongs to it: a move
-        // sent now would arrive in the transition's own sync window and be the
+        // sent now would land in the transition's sync window and be the
         // position it is applied at. The newest position is kept, and pump
         // sends it once the outbox is empty again.
         if (buttonOutbox.length) return;
-        // One move per frame, carrying the newest position. Sending every
-        // pointermove only fed the emulator more than it keeps -- and what it
-        // keeps is the OLDEST of the batch, so the cursor trailed the finger.
+        // One move per frame, and it is the newest position that goes. Sending every
+        // pointermove only fed the emulator more than it uses -- and what it
+        // uses is the OLDEST of the batch, so the cursor trailed the finger.
         if (moveFrame === null) moveFrame = requestAnimationFrame(() => { moveFrame = null; sendMove(); });
     }
 
     function mouseButton(button, down) {
         // cursorX/cursorY, not pendingMove: this is where the pointer is at
-        // the instant the transition is asked for, and it is what the
+        // the instant the transition is queued, and it is what the
         // transition must be applied at however long it waits. See the long
         // comment above.
         buttonOutbox.push({button: button, down: down, x: cursorX, y: cursorY});
@@ -944,7 +944,7 @@
         const next = buttonOutbox.shift();
         if (moveFrame !== null) { cancelAnimationFrame(moveFrame); moveFrame = null; }
         // First in the batch, so the guest applies the position and then the
-        // button level -- and it is the transition's OWN position, sent
+        // button level -- and it is the position for that transition, sent
         // unconditionally so the press cannot rely on a move that went out in
         // some earlier sync window.
         postMove(next.x, next.y);
@@ -962,7 +962,7 @@
 
     // Every key this page can send, so that a key held when the page is hidden
     // or a pointer is cancelled can be released. A movement key stuck down in
-    // Cythera means the character keeps walking, which is the single most
+    // Cythera means the character walks on and on, which is the single most
     // annoying way for a touch control to fail.
     const heldKeys = new Set();
     function pressKey(code) { heldKeys.add(code); sendKey(code, true); }
@@ -992,7 +992,7 @@
     // Pointer events rather than touch events: the same code now works with a
     // mouse, so the windows can be arranged on a desktop too -- they could only
     // ever be moved by a finger. Pointer capture also means a fast drag that
-    // outruns the handle keeps going instead of stopping dead.
+    // outruns the handle goes on instead of stopping dead.
     const hudWindows = [];
     document.querySelectorAll('.hud-window').forEach(win => {
         const dragHandle = win.querySelector('.drag-handle'), resizeHandle = win.querySelector('.resize-handle');
@@ -1030,8 +1030,8 @@
         });
     });
 
-    /* Dragging, for anything with a grab handle. The settings panel wants the
-       same behaviour as the floating windows, and it also has to keep working
+    /* Dragging, for anything with a grab handle. The settings panel behaves
+       like the floating windows, and it also has to keep working
        as a button -- so a press that never travels more than a few pixels is
        reported as a tap instead of a move. */
     function makeDraggable(el, handle, opts) {
@@ -1143,7 +1143,7 @@
         return null;
     }
     // Pointer events, so the joystick works under a mouse as well as a thumb,
-    // and so a drag that leaves the window keeps steering instead of stopping
+    // and so a drag that leaves the window still steers instead of stopping
     // dead with the direction key still held.
     let joyId = null;
     function joyPoint(e) {
@@ -1191,7 +1191,7 @@
        "DRU" is down, then right, then up, which is the shape of a U -- and
        matched against this table, most specific first.
 
-       ORDER IS THE WHOLE POINT. The tests used to run with the loosest one
+       ORDER IS THE WHOLE POINT. Until October 2026 the tests ran with the loosest one
        third, so `dirs.includes("DR")` claimed LOOK before USE ("DRU") or CAST
        ("LDR") were ever considered, and both of those gestures were dead: you
        drew a U and the game looked at something. Anything matching a longer
@@ -1304,8 +1304,8 @@
 
        The old filter was a 3x3 box blur that fired only where all four
        neighbours differed -- the same shape as the one the viewer deleted for
-       "pushing pixels off the palette". This one decides pixel by pixel
-       whether it is looking at a dither or at drawn linework, and leaves the
+       "pushing pixels off the palette". This one sorts every pixel into
+       dither or drawn linework, and leaves the
        linework alone. */
     const UNDITHER = {sens: 0.67, strength: 0.67, detail: 0.5};
 
@@ -1314,12 +1314,12 @@
     const VS = `attribute vec2 a_position; varying vec2 v_texCoord;
         void main() { v_texCoord = a_position * 0.5 + 0.5; gl_Position = vec4(a_position, 0.0, 1.0); }`;
 
-    // A frame arrives top row first; the emulator's screen is drawn the same
+    // The first row of a frame is the top one; the emulator's screen is drawn the same
     // way, so only the pass that reaches the display flips it.
     // CLAMP_TO_EDGE would repeat the edge pixel into the average; the viewer
     // leaves an out-of-range neighbour out of the count instead. `inside()` is
-    // that rule, and it is what makes the two agree at the border as well as
-    // in the middle.
+    // that rule, and with it the two give the same result at the border as
+    // well as in the middle.
     const GLSL_INSIDE = `bool inside(vec2 uv) { return uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0; }`;
 
     const FS_MEAN = `precision highp float;
@@ -1338,10 +1338,10 @@
         }`;
 
     /* detect(), the lock pass and the notch, in one. The residual of a pixel
-       is what is left after its own neighbourhood's mean is taken away, and
-       the question the detector asks is whether the residuals along a line
-       through the pixel agree with it or alternate against it. A dither
-       alternates; a drawn edge agrees. That is the whole idea, and it is why
+       is what is left after the mean of its neighbourhood is taken away, and
+       the detector tests whether the residuals along a line
+       through the pixel run with it or alternate against it. A dither
+       alternates; a drawn edge runs with it. That is the whole idea, and it is why
        this can smooth a checkerboard without touching a one-pixel highlight. */
     const FS_DETECT = `precision highp float;
         varying vec2 v_texCoord;
@@ -1382,7 +1382,7 @@
             }
 
             // A pixel whose whole neighbourhood is one colour has nothing to
-            // undither, whatever the residuals said.
+            // undither, whatever the residuals are.
             bool uniformArea = true;                 // "flat" is a reserved word
             for (int dy = -1; dy <= 1; dy++)
                 for (int dx = -1; dx <= 1; dx++) {
@@ -1428,7 +1428,7 @@
             gl_FragColor = vec4(self.rgb + w * (self.rgb - blurred), 1.0);
         }`;
 
-    /* All of this used to run unguarded at the top level, so on a browser
+    /* Until October 2026 all of this ran unguarded at the top level, so on a browser
        without WebGL -- or with it blocked, or with too many live contexts --
        getContext returned null and the script died before it had installed a
        single input handler. The page came up as a dead emulator with no
@@ -1467,11 +1467,11 @@
             gl.enableVertexAttribArray(0);
             gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
 
-            // The detector works on residuals -- a pixel minus its own
+            // The detector works on residuals -- a pixel minus its
             // neighbourhood's mean -- which are small numbers. Eight bits per
             // channel quantises the mean, and the error lands squarely on the
             // faint end of the detector's ramp, so half floats are worth
-            // asking for. Every desktop and nearly every phone GPU has them;
+            // requesting. Every desktop and nearly every phone GPU has them;
             // where they are missing the filter still runs, a little coarser.
             gl.getExtension('OES_texture_half_float_linear');
             const halfFloat = gl.getExtension('OES_texture_half_float');
@@ -1486,7 +1486,7 @@
             if (fboType !== gl.UNSIGNED_BYTE &&
                 gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
                 // Some drivers advertise half floats but will not render to
-                // them. Asking is the only way to find out.
+                // them. The only way to find out is to render to one and check.
                 fboType = gl.UNSIGNED_BYTE;
                 gl.deleteTexture(texMean); gl.deleteTexture(texRes);
                 texMean = makeTexture();
@@ -1554,7 +1554,7 @@
 
     // Called from the one message listener at the top, which is also where
     // the emulator's real screen size is picked up. Two listeners for the same
-    // message meant two places that had to agree about what a frame is.
+    // message meant two places that had to match on what a frame is.
     function drawScreen(msg) {
         if (isCrisp || !shaderReady || !msg.data) return;
         const w = msg.width || screenWidth, h = msg.height || screenHeight;
@@ -1581,7 +1581,7 @@
     }
 
     // Settings Drawer Buttons
-    /* The settings panel used to be bolted to the bottom of the screen, where
+    /* Until October 2026 the settings panel was bolted to the bottom of the screen, where
        it sat on top of whatever was there -- and on a phone in landscape that
        is most of the game. It moves now, like the other floating windows, and
        collapsing it hides its buttons where it stands rather than sliding it
@@ -1629,8 +1629,8 @@
         pauseBtn.innerHTML = isPaused ? '<span class="emoji">▶️</span>Play' : '<span class="emoji">⏸️</span>Pause';
     });
 
-    // A native confirm() is a system-modal dialog: on iOS it takes focus away
-    // mid-gesture and leaves the touch handlers here with a pointer they never
+    // A native confirm() is a system-modal dialog: on iOS focus goes to it
+    // mid-gesture, which leaves the touch handlers here with a pointer they never
     // see released. This one is part of the page.
     const modalEl = document.getElementById('modal-confirm');
     const modalInput = document.getElementById('modal-input');
@@ -1700,7 +1700,7 @@
         fullscreenBtn.title = 'Fullscreen is not available in this browser';
     }
 
-    // emulator_load_disk takes a URL, and infinitemac.org's own worker is what
+    // emulator_load_disk accepts a URL, and infinitemac.org's worker is what
     // fetches it (a HEAD for the size, then ranged reads), not this browser.
     // So a blob: URL made from a local file cannot work, and neither can a
     // private address -- which is exactly why the local Cythera files are
@@ -1763,9 +1763,9 @@
         btn.addEventListener('pointerdown', e => { e.preventDefault(); pressKey(code); });
         btn.addEventListener('pointerup', e => { e.preventDefault(); releaseKey(code); });
         btn.addEventListener('pointerleave', e => { e.preventDefault(); releaseKey(code); });
-        // pointercancel fires whenever the browser takes the gesture over --
-        // a scroll starting, a system edge swipe, a call arriving. Without it
-        // the key was never released and the character walked off on its own.
+        // pointercancel fires whenever the browser claims the gesture --
+        // a scroll starting, a system edge swipe, an incoming call. Without it
+        // the key was never released and the character walked off by itself.
         btn.addEventListener('pointercancel', () => releaseKey(code));
         btn.tabIndex = 0;
         btn.setAttribute('role', 'button');
@@ -1817,8 +1817,8 @@
        type-select selects nothing and every Command-O does nothing.
 
        DISK_NAME and SCRIPT_NAME are the same strings explorer.html writes on
-       the disk. `mobile_install_check.mjs` reads both pages and fails if they
-       stop agreeing -- two halves of one contract in two files is exactly the
+       the disk. `mobile_install_check.mjs` reads both pages and fails on any
+       difference between them -- two halves of one contract in two files is exactly the
        arrangement the undither check exists for. */
     const INSTALL_DISK_NAME = 'Cythera Export';
     const INSTALL_SCRIPT_NAME = 'Install and Play';
@@ -1835,7 +1835,7 @@
                An error occured while rebuilding the desktop file on the disk
                "..."; comments from info windows were not preserved.
 
-           and that alert is MODAL -- it holds the keyboard, so every keystroke
+           and that alert is MODAL -- the keyboard goes to it, so every keystroke
            below would go into a dialog that ignores it and the install would
            silently do nothing. Return presses its OK.
 
@@ -1907,9 +1907,9 @@
         releaseKey('ShiftLeft');
         await sleep(INSTALL_KEY_MS);
     }
-    /* Typing long text needs pacing, and the reason is in infinite-mac's own
-       source. `updateInputBufferWithEvents` carries ONE key event per sync --
-       "currently only one key event can be sent per sync", its comment says --
+    /* Typing long text needs pacing, and the reason is in infinite-mac's
+       source. `updateInputBufferWithEvents` sends ONE key event per sync --
+       "currently only one key event can be sent per sync", in its comment --
        and it writes the code into a single slot with the flag set,
        unconditionally. Nothing is dropped on this side (the leftovers stay
        queued and retry), but if the guest has not polled since the last key,
@@ -1937,17 +1937,17 @@
         }
     }
 
-    /* ---- Patching the game's own file, with nothing but keystrokes --------
+    /* ---- Patching the game's file, with nothing but keystrokes ------------
        The disk route needs a file to reach the emulator, and on a phone there
        is no way to put one there that does not go through someone else's file
-       picker. This route carries no file at all: explorer.html works out which
+       picker. No file goes anywhere on this route: explorer.html works out which
        BYTES of Cythera Data an edit changes -- the cipher is a
        position-indexed keystream XOR, so a reworded line is a handful of them,
        and one word was measured at a single byte -- and this types an
        AppleScript that writes them.
 
        Four things about it were settled by running a reconnaissance script in
-       a real Mac OS 7.6 rather than guessed:
+       a real Mac OS 7.6 rather than assumed:
 
          - Script Editor is at Macintosh HD:Apple Extras:AppleScript(tm), and
            the folder's name really does end in a trademark sign, so it is
@@ -1956,7 +1956,7 @@
            0-based file offset, so it goes out as offset + 1. Off by one here
            corrupts a byte silently.
          - open for access / write / read / close access / set eof all work.
-         - `display dialog` refuses a string of 256 characters or more, which
+         - `display dialog` throws an error for a string of 256 characters or more, which
            is why what it reports is short.
 
        The script checks the old byte before writing it. A patch is only valid
@@ -1999,10 +1999,10 @@
         'end unhex',
     ];
 
-    /* How much script one pass may carry. Script Editor's script field is a
-       classic TextEdit record, and those cap at 32,767 bytes; 7,000 keeps well
-       clear of that, and a shorter document is also less work for the guest
-       between keystrokes, which is what the pacing above is about. It keeps
+    /* How much script one pass may have. Script Editor's script field is a
+       classic TextEdit record, and those cap at 32,767 bytes; 7,000 leaves a wide
+       margin below that, and a shorter document is also less work for the guest
+       between keystrokes, which is what the pacing above is about. It limits
        each pass to a few minutes of typing,
        which is a reasonable unit of "did that work?". A patch longer than one
        pass is split, and between passes the sequence is Command-A then the
@@ -2012,7 +2012,7 @@
     const hexOf = a => a.map(b => b.toString(16).padStart(2, '0')).join('');
 
     // The lines that find the game's folder. Every pass needs them, because
-    // each pass is a whole script in its own right.
+    // each pass is a whole script by itself.
     const PATCH_FIND_GAME = [
         'set d to ""',
         'tell application "Finder"',
@@ -2058,7 +2058,7 @@
             lines.push('write my unhex("' + hexOf(r.now) + '") to fd starting at ' + (r.offset + 1));
             lines.push('close access fd');
         }
-        // Only the last pass says anything, so the passes before it leave the
+        // Only the last pass shows a dialog, so the passes before it leave the
         // keyboard in the script field rather than in a dialog.
         if (isLast) lines.push('tell application "Finder" to open file "Cythera" of g');
         lines.push('end if');
@@ -2128,8 +2128,8 @@
        type-select and hope, the script searches for it, which is the same
        shape as the patcher and costs about two minutes of typing.
 
-       ZIP_FOLDER_NAME is a contract with explorer.html, which names the zip so
-       that this is the folder it becomes. */
+       ZIP_FOLDER_NAME is a contract with explorer.html: the zip's name there
+       is what makes this the folder it becomes. */
     const ZIP_FOLDER_NAME = 'Cythera Patch';
     const ZIP_ARCHIVE_NAME = 'Cythera Data';
     function buildZipInstallScript() {
@@ -2164,7 +2164,7 @@
             'display dialog "No Cythera folder found" buttons {"OK"}',
             'else',
             // `with replacing` is what makes the copy silent; without it the
-            // Finder asks, and there is nobody there to answer.
+            // Finder shows a dialog, and there is nobody there to answer.
             'duplicate src to dst with replacing',
             'open file "Cythera" of dst',
             'end if',
@@ -2215,7 +2215,7 @@
 
     /* offset:old:new in hex, comma separated -- written by explorer.html's
        encodeResourcePatch, and utilities/mobile_patch_check.mjs fails if the
-       two sides stop agreeing about the shape. */
+       two sides stop matching on the shape. */
     function decodePatch(text) {
         const runs = [];
         for (const part of String(text).split(',')) {
@@ -2256,7 +2256,7 @@
         askConfirm(
             'Install the mod on “' + INSTALL_DISK_NAME + '” and start Cythera?\n\n' +
             'Drop the .dsk the viewer exported on the emulator first, and leave the ' +
-            'Finder in front — this types at it, so whatever is frontmost gets the keys. ' +
+            'Finder in front — this types at it, so the keys go to whatever is frontmost. ' +
             'It replaces the Cythera Data in the game’s folder, which cannot be undone.',
             () => { runInstall(); });
     });
@@ -2293,7 +2293,7 @@
     let pinchCenterX = 0, pinchCenterY = 0;
 
     // Which buttons are down inside the emulated Mac. Nothing tracked this, so
-    // a gesture the browser took over -- a system edge swipe, a call arriving,
+    // a gesture the browser claimed -- a system edge swipe, an incoming call,
     // a window losing focus mid-drag -- left the button down for good: in the
     // Finder, a window dragged forever; in Cythera, an item never let go of.
     const heldButtons = new Set();
@@ -2301,13 +2301,13 @@
     function releaseButton(b) { if (heldButtons.delete(b)) mouseButton(b, false); }
     function releaseAllButtons() { for (const b of Array.from(heldButtons)) releaseButton(b); }
     // The outbox below guarantees the press and the release reach the Mac as
-    // two separate levels, so a click no longer has to time its own release.
+    // two separate levels, so a click does not need to time its release.
     function clickOnce(button) { pressButton(button); releaseButton(button); }
     const buttonOf = e => (e.button === 2 ? 2 : e.button === 1 ? 1 : 0);
 
     function getEmulatorCoords(clientX, clientY, offsetY) {
-        // #scale-target *is* the emulated screen, and its rect already carries
-        // both the fit-to-window scale and the pinch zoom.
+        // #scale-target *is* the emulated screen, and both the fit-to-window scale
+        // and the pinch zoom are already in its rect.
         const rect = scaleTarget.getBoundingClientRect();
         const sx = (rect.width / screenWidth) || 1, sy = (rect.height / screenHeight) || 1;
         return {
@@ -2386,7 +2386,7 @@
     touchOverlay.addEventListener('pointerdown', e => {
         e.preventDefault();
         // Capture, so a drag that outruns the overlay -- off the edge of the
-        // window, over a floating control -- keeps arriving here.
+        // window, over a floating control -- is still delivered here.
         touchOverlay.setPointerCapture?.(e.pointerId);
         pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -2404,8 +2404,8 @@
 
         if (isPrecise(e)) {
             // A real button, pressed where the pointer already is. The right
-            // one goes through as the right one; the two-finger tap below is
-            // how a finger says the same thing.
+            // one goes through as the right one; for a finger, the two-finger tap
+            // below is the equivalent.
             const c = getEmulatorCoords(e.clientX, e.clientY);
             setCursor(c.x, c.y);
             pressButton(buttonOf(e));
@@ -2509,7 +2509,7 @@
     touchOverlay.addEventListener('pointerup', e => endPointer(e, false));
     touchOverlay.addEventListener('pointercancel', e => endPointer(e, true));
 
-    // Nothing in the embed API carries a scroll wheel through to the emulated
+    // The embed API has no message for a scroll wheel on the emulated
     // Mac, so the wheel is free to be the desktop half of the pinch.
     touchOverlay.addEventListener('wheel', e => {
         e.preventDefault();
@@ -2522,12 +2522,12 @@
 
     /* ---- A real keyboard -------------------------------------------------
        The emulator is in a cross-origin iframe with #touch-overlay on top of
-       it, so it can never take the keyboard focus: on a desktop this page had
+       it, so the keyboard focus can never be in it: on a desktop this page had
        no keyboard at all beyond the on-screen buttons, and Cythera is a game
        played on the numeric keypad.
 
-       Keys go through by `code`, which names the physical key, so a Dvorak or
-       AZERTY layout arrives as the key the emulator's own table knows. A code
+       Keys go through by `code`, which identifies the physical key, so a Dvorak or
+       AZERTY layout comes in as the key in the emulator's table. A code
        it does not recognise it ignores. */
     const BROWSER_OWNS = new Set(['F5', 'F11', 'F12']);
     function keyboardGoesToEmulator(e) {
@@ -2536,7 +2536,7 @@
         const t = e.target;
         if (!t) return true;
         if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return false;
-        // A focused on-screen control handles its own Enter and Space; without
+        // A focused on-screen control handles Enter and Space itself; without
         // this, pressing one would also send the key straight to the Mac.
         if (t.closest && t.closest('#hud-layer')) return false;
         return true;
@@ -2544,14 +2544,14 @@
     function browserKeepsKey(e) {
         if (BROWSER_OWNS.has(e.key)) return true;
         // Reload, new tab, close, address bar: the browser acts on these
-        // whatever this page asks for, and forwarding one only leaves a
+        // whatever this page does, and forwarding one only leaves a
         // modifier stuck down inside the emulated Mac.
         return (e.ctrlKey || e.metaKey) && /^Key[RTWNLQ]$/.test(e.code);
     }
     document.addEventListener('keydown', e => {
         if (!keyboardGoesToEmulator(e) || browserKeepsKey(e)) return;
         e.preventDefault();          // no page scrolling on Space or the arrows
-        if (e.repeat || !e.code) return;   // the Mac does its own repeating
+        if (e.repeat || !e.code) return;   // the Mac handles repeating itself
         pressKey(e.code);
     });
     const isModifierCode = code => /^(Meta|Control|Alt|Shift)/.test(code);
@@ -2560,8 +2560,8 @@
         releaseKey(e.code);
         // macOS does not deliver keyup for a non-modifier key pressed while
         // Command is held (mihaip/infinite-mac#89), so the emulated Mac is
-        // left holding it down. Infinite Mac works around this for its own
-        // keyboard; keys sent through the embed API arrive past that, so the
+        // left holding it down. Infinite Mac works around this for its
+        // keyboard; keys sent through the embed API bypass that, so the
         // same sweep has to happen here. Releasing a key that is already up
         // costs nothing, which is why this is not conditional on the platform.
         if (e.code.startsWith('Meta')) {
@@ -2577,9 +2577,9 @@
        which is how `sources/Cythera.hqx` and `sources/Cythera Data.hqx` get
        into the machine, StuffIt Expander being right there on the Infinite HD.
 
-       That drop has to land on the *iframe*, because it is the iframe's own
+       That drop has to land on the *iframe*, because it is the iframe's
        page that handles it. Nothing here can forward a File across origins:
-       the embed API takes a URL for emulator_load_disk, and infinitemac.org's
+       emulator_load_disk in the embed API is given a URL, and infinitemac.org's
        server is what fetches that URL, so a blob: made from a local file is
        useless to it.
 
@@ -2608,7 +2608,7 @@
     // A drop anywhere outside the emulator would otherwise make the browser
     // navigate away from the page and open the file.
     window.addEventListener('dragover', e => { if (draggingFiles(e)) e.preventDefault(); });
-    // A drop that misses the screen used to be wasted -- the page said "drop it
+    // A drop that missed the screen was wasted until October 2026 -- the page showed "drop it
     // on the Mac screen" and threw the file away, so a near miss cost another
     // trip to the Downloads folder. It is caught instead: the file goes into
     // the card below, which is one short drag from the screen.
@@ -2628,18 +2628,18 @@
        is the part that cannot be automated.
 
        Nothing here can put a local file into the emulator. emulator_load_disk
-       takes a URL and infinitemac.org's own server is what fetches it
+       accepts a URL and infinitemac.org's server is what fetches it
        (Mac.tsx -> getCDROMInfo -> PUT /CD-ROM/<base64>), so a blob: URL made
        from these bytes is unreachable from there; and the drop that does work
-       is the iframe's own document's event, which no page can synthesise
+       is an event of the iframe's document, which no page can synthesise
        across an origin. So the last hop is a real drag, made as short as
        possible: the card sits at the bottom of the screen and the emulator is
        directly above it.
 
        The chip feature-detects itself. Adding a File to the drag data store is
-       only allowed while dragstart is running, and a browser that refuses
-       leaves dataTransfer.types without 'Files' -- in which case the chip says
-       so instead of starting a drag that would silently carry nothing. Save
+       only allowed while dragstart is running, and a browser that blocks it
+       leaves dataTransfer.types without 'Files' -- in which case the chip shows
+       a message instead of starting a drag that would silently move nothing. Save
        the file is the way through on a touch device, where there is no drag
        at all. */
     const diskCard = document.getElementById('disk-card');
@@ -2652,7 +2652,7 @@
        was the wrong way round in the first version of this card. */
     const CAN_DRAG = (() => {
         // Fails towards touch on purpose. A phone reports no hover and a
-        // coarse pointer, but a touch laptop reports both, and being told to
+        // coarse pointer, but a touch laptop reports both, and an instruction to
         // drag when you cannot is worse than losing a chip you could have
         // used -- Load it works everywhere either way.
         try {
@@ -2667,8 +2667,8 @@
             file.name + ' — ' + Math.round(file.size / 1024) + ' KB';
         document.getElementById('disk-card-why').innerHTML = (how ? 'Ready (' + how + '). ' : 'Ready. ') +
             (CAN_DRAG
-                ? 'Drag it onto the screen, or <b>Load it</b> to pick it with the Mac\u2019s own control.'
-                : '<b>Save the file</b> first \u2014 the Mac\u2019s own picker reads your Files app, ' +
+                ? 'Drag it onto the screen, or <b>Load it</b> to pick it with the Mac\u2019s control.'
+                : '<b>Save the file</b> first \u2014 the Mac\u2019s picker reads your Files app, ' +
                   'not this page \u2014 then <b>Load it</b> and choose it.');
         diskCard.hidden = false;
         diskChip.hidden = !CAN_DRAG;
@@ -2690,7 +2690,7 @@
         }
     });
 
-    /* ---- File mode: infinite-mac's own picker ----------------------------
+    /* ---- File mode: infinite-mac's picker --------------------------------
        This is the only way a file on this device reaches the emulator, and on
        a phone it is the ONLY way at all -- there is no drag on a touch screen,
        which is what the chip above is for and why it cannot be the whole
@@ -2698,8 +2698,8 @@
 
        The control belongs to infinite-mac and is inside a cross-origin iframe,
        so this page cannot tap it; what it can do is get it on screen and out
-       of its own way. The iframe fills the window, this page's overlay and HUD
-       stand down, and a banner says which control to tap. `input.click()` on
+       out of the way of it. The iframe fills the window, this page's overlay and HUD
+       stand down, and a banner points to the control to tap. `input.click()` on
        the far side opens the system file picker, which on iOS and Android is
        the Files app -- the file has to be saved there first, which is what
        Save the file on the card is for.
@@ -2712,7 +2712,7 @@
     const emulatorWrapper = document.getElementById('emulator-wrapper');
     const fileArrow = document.getElementById('file-arrow');
     let inFileMode = false;
-    /* Where infinite-mac's own control row is, in the iframe's own pixels.
+    /* Where infinite-mac's control row is, in the iframe's pixels.
 
        Measured across six iframe sizes and exact in every one. The ScreenFrame
        is (screen + 22) square with the screen 11px inside it; it is
@@ -2753,15 +2753,15 @@
             fileArrow.hidden = true;
             return;
         }
-        /* Scaled UP, not down. The row is 15px tall in the iframe's own
+        /* Scaled UP, not down. The row is 15px tall in the iframe's
            pixels; at a scale that fits the whole 640x1385 screen into a phone
            it came out about nine pixels tall, which is why this looked broken.
-           The cap keeps "Load File" itself on screen horizontally. */
+           With the cap, "Load File" itself stays on screen horizontally. */
         const k = Math.max(1.4, Math.min(3.2, vw / FILE_STRIP_WIDTH));
         const bandTop = screenHeight + 22 + FILE_STRIP_SHIFT;   // just above the row
         const bandHeight = 32;                                   // the row plus air
         // The strip sits clear of the bottom edge, where a phone browser puts
-        // its own toolbar and where the control was disappearing.
+        // its toolbar and where the control was disappearing.
         const stripH = Math.round(bandHeight * k);
         const stripTop = Math.max(12, vh - 96 - stripH);
         iframe.style.clipPath = `inset(${bandTop}px 0px ${Math.max(0, h - bandTop - bandHeight)}px 0px)`;
@@ -2773,7 +2773,7 @@
         fileArrow.style.top = `${Math.max(0, stripTop - 34)}px`;
     }
 
-    /* Leaving file mode on its own once the picker has been used.
+    /* Leaving file mode by itself once the picker has been used.
 
        This was the bug: file mode clips the iframe down to the control row, so
        the Mac's screen is not drawn at all, and the panel covers the rest.
@@ -2784,11 +2784,11 @@
        A page cannot see inside the picker: it belongs to the operating system
        and the control belongs to a cross-origin iframe. What it can see is
        that it lost focus when the picker opened and got it back when the
-       picker closed, which is the standard way to know a file dialog has been
+       picker closed, and that is the standard sign that a file dialog has been
        dismissed. That is what this listens for -- with visibilitychange
        alongside it, because a phone browser backgrounds the page rather than
        blurring it, and a timer as a floor so a browser that reports neither
-       still comes back on its own. */
+       still comes back by itself. */
     let filePickerBlurred = false, fileModeTimer = null;
     function noteFileModeBlur() { if (inFileMode) filePickerBlurred = true; }
     function noteFileModeFocus() {
@@ -2811,7 +2811,7 @@
         iframe.classList.toggle('file-mode', on);
         fileBanner.hidden = !on;
         // The overlay would swallow every tap meant for the control, and the
-        // pads and drawer would sit on top of the emulator's own chrome.
+        // pads and drawer would sit on top of the emulator's chrome.
         touchOverlay.style.pointerEvents = on ? 'none' : '';
         hudLayer.style.visibility = on ? 'hidden' : '';
         clearTimeout(fileModeTimer);
@@ -2828,28 +2828,28 @@
             }, 120000);
             /* position:fixed does NOT escape a transformed ancestor -- it is
                positioned against that ancestor instead of the viewport, and
-               #scale-target carries the fit-to-window scale while
-               #pan-zoom-container carries the pinch zoom and a
-               will-change:transform, which is enough on its own to make a
+               the fit-to-window scale is on #scale-target while the
+               pinch zoom is on #pan-zoom-container, with a
+               will-change:transform, which is enough by itself to make a
                containing block. Leaving them in place scaled the strip by the
-               page's own factor a second time, which put the control at 62% of
-               the size asked for and 270px above where it was aimed. */
+               page's factor a second time, which put the control at 62% of
+               the size requested and 270px above where it was aimed. */
             panZoomContainer.style.willChange = 'auto';
             panZoomContainer.style.transform = 'none';
             scaleTarget.style.transform = 'none';
-            /* And the iframe's own z-index cannot lift it out of
+            /* And the iframe's z-index cannot lift it out of
                #emulator-wrapper, which has z-index 1 and so is a stacking
-               context of its own: every z-index inside it is resolved against
+               separate stacking context: every z-index inside it is resolved against
                its siblings, not against this panel. That is exactly how the
                control ended up painted over by the very panel pointing at it.
                The wrapper is what has to rise. */
             emulatorWrapper.style.zIndex = '2500';
             document.getElementById('file-banner-text').innerHTML =
-                'The strip below is the Mac\u2019s own control row. Tap <b>Load File</b> in it and ' +
+                'The strip below is the Mac\u2019s control row. Tap <b>Load File</b> in it and ' +
                 'choose your file \u2014 a disk image mounts, anything else lands in the Mac\u2019s ' +
                 'Downloads folder. Nothing restarts, so whatever is running is safe.' +
                 '<br><br>This panel closes by itself once you have chosen, so you can watch the ' +
-                'file arrive.';
+                'file come in.';
             layOutFileMode();
         } else {
             iframe.style.transform = '';
@@ -2872,8 +2872,8 @@
         layOutFileMode();
     });
 
-    // This page's own picker is still here, but it is the lesser of the two:
-    // what it gets is a file in this page's hands, which still has to reach
+    // This page's picker is still here, but it is the lesser of the two:
+    // the result is a file in this page's hands, which still has to reach
     // the emulator somehow. It is reached from the card, not the drawer.
     document.getElementById('disk-file-input').addEventListener('change', e => {
         const file = e.target.files && e.target.files[0];
@@ -2896,7 +2896,7 @@
        these four names are a contract between two pages that cannot see each
        other, and utilities/mobile_handoff_check.mjs fails if either side
        changes one. The record is deleted once it is in hand -- it is a
-       delivery, not a cache, and the archive explorer.html remembers lives in
+       delivery, not a cache, and explorer.html's stored archive is in
        a different store for that reason. */
     const HANDOFF_DB = 'cythera-viewer', HANDOFF_DB_VERSION = 2;
     const HANDOFF_STORE = 'handoff', HANDOFF_KEY = 'disk';
@@ -2907,7 +2907,7 @@
             catch (err) { reject(err); return; }
             // Only explorer.html creates the stores. Opening at the same
             // version cannot upgrade, so a visitor who has never opened that
-            // page gets an empty database rather than a broken one.
+            // page ends up with an empty database rather than a broken one.
             req.onupgradeneeded = () => {
                 const db = req.result;
                 if (!db.objectStoreNames.contains(HANDOFF_STORE)) db.createObjectStore(HANDOFF_STORE);
@@ -2930,7 +2930,7 @@
     }
     // ?handoff=1, and NOT ?disk=: this page has read ?disk= as the system disk
     // to boot since long before this existed, so a handoff on that parameter
-    // would have asked the emulator for a machine called "handoff".
+    // would have requested a machine called "handoff" from the emulator.
     /* ?patch=<offset:old:new,...> -- an edit as bytes rather than a file. This
        is the route that works on a phone: nothing has to reach the emulator's
        file picker, because nothing is a file. */
@@ -2938,15 +2938,15 @@
     onTap(patchBtn, () => {
         if (!patchRuns) return;
         const n = patchRuns.reduce((a, r) => a + r.now.length, 0);
-        askConfirm('Type the change into the game\u2019s own Cythera Data?\n\n' +
+        askConfirm('Type the change into the game\u2019s Cythera Data?\n\n' +
             n + ' byte(s) in ' + patchRuns.length + ' place(s). It opens Script Editor and runs a ' +
             'script that checks the old bytes first and stops if they do not match. Leave the ' +
             'Finder in front while it types.', () => runPatch());
     });
     /* The zip's installer. It is always offered, because this page cannot see
-       what the emulator has been given -- a file loaded through the Mac's own
+       what the emulator has been given -- a file loaded through the Mac's
        picker never passes through here. With nothing unpacked, every step is a
-       no-op and the script says so. */
+       no-op and the script reports it. */
     onTap(document.getElementById('zipinstall-btn'), () =>
         askConfirm('Move the archive from the ' + ZIP_FOLDER_NAME + ' folder into the game\u2019s ' +
             'folder?\n\nLoad the .zip with File \u2192 Load File first. This types a short script ' +
@@ -2987,7 +2987,7 @@
     setCrisp(prefs.crisp === undefined ? true : !!prefs.crisp);
     paintSpeed();
     setStartStatus('Preparing…', false);
-    // The emulator is not asked for until cross-origin isolation has been
+    // The emulator is not requested until cross-origin isolation has been
     // settled one way or the other, because settling it can mean reloading
     // this page -- and a reload halfway through downloading a machine and a
     // disk image is the one thing on a phone that would actually be expensive.
@@ -2996,7 +2996,7 @@
         iframe.src = buildEmbedUrl(currentSpeed);
         // Neither the emulator nor the disk image is served from here, and both
         // are third-party. If nothing reports in, say so rather than showing an
-        // encouraging message over a screen that is never going to arrive.
+        // encouraging message over a screen that is never going to appear.
         setTimeout(() => {
             if (emulatorReady) return;
             setStartStatus('Still waiting on infinitemac.org and the Cythera disk image. ' +
@@ -3010,7 +3010,7 @@
             const r = win.getBoundingClientRect();
             placeWindow(win, r.left, r.top);
         }
-        // Only once it has been moved: until then its own CSS centres it.
+        // Only once it has been moved: until then the element's CSS centres it.
         if (settingsDrawer.style.left) {
             const r = settingsDrawer.getBoundingClientRect();
             placeWindow(settingsDrawer, r.left, r.top);
