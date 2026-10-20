@@ -29,7 +29,7 @@ _JUNK = bytes(b for b in range(256) if chr(b) not in ALPHA)
 def debinhex(raw):
     """Undo the 6-bit packing and the 0x90 run-length encoding.
 
-    Takes the raw bytes of a .hqx file, returns the decoded header+forks blob.
+    Given the raw bytes of a .hqx file, returns the decoded header+forks blob.
     """
     start = raw.index(b':')
     body = raw[start + 1:]
@@ -45,7 +45,7 @@ def debinhex(raw):
     packed[1::3] = bytes((y << 4 | z >> 2) & 0xFF for y, z in zip(b, c))
     packed[2::3] = bytes((z << 6 | w) & 0xFF for z, w in zip(c, d))
 
-    # Trailing 6-bit values that did not fill a whole group still carry bits.
+    # Trailing 6-bit values that did not fill a whole group still contain bits.
     rest = vals[n4:]
     if len(rest) >= 2:
         bits = nbits = 0
