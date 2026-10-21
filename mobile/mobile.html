@@ -1634,7 +1634,7 @@
     const modalEl = document.getElementById('modal-confirm');
     const modalInput = document.getElementById('modal-input');
     let modalOnOk = null;
-    // Wired once. Adding and removing a pair of listeners per call meant the
+    // These listeners are added a single time, here. Adding and removing a pair of listeners per call meant the
     // buttons behaved differently depending on how the dialog was opened, and
     // could not be reached from a keyboard at all.
     function closeModal() { modalEl.hidden = true; modalOnOk = null; }
