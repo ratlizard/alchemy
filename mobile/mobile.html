@@ -584,7 +584,7 @@
        in a browser nobody here has. And the reload is attempted once per tab:
        if it comes back still not isolated -- some browsers ignore the headers,
        some block the worker -- the flag stops it looping and the page simply
-       runs slowly, which is what it did before.
+       runs slowly, which is how it always ran.
 
        The emulator is not started until this settles, so the first visit does
        not download the machine and the disk twice. */
@@ -857,8 +857,7 @@
        with every transition. There is no batch a transition can share
        with its opposite.
 
-       "The position goes with every transition" is literal, and it was not always
-       so. Until October 2026 the outbox had only {button, down} and flushed whatever position
+       "The position goes with every transition" is literal. Until October 2026 the outbox had only {button, down} and flushed whatever position
        happened to be pending when the transition's turn came round -- which
        is the position of wherever the finger is NOW, not where it was when
        that transition was queued. Tapping twice in quick succession therefore

@@ -246,8 +246,8 @@ check(/id="file-banner-zoom"/.test(mobileHtml),
 /* File mode clips the iframe down to the control row, so while it is up the
    Mac's screen is not drawn at all. If it does not end by itself, choosing a
    file appears to do nothing whatsoever -- the upload runs behind an opaque
-   panel and the only way out is a button nobody should have to hunt for. That
-   shipped once. */
+   panel and the only way out is a button nobody should have to hunt for. A
+   version with that bug shipped. */
 check(/window\.addEventListener\('focus', noteFileModeFocus\)/.test(mobile) &&
       /window\.addEventListener\('blur', noteFileModeBlur\)/.test(mobile),
       'file mode ends when the picker hands focus back',

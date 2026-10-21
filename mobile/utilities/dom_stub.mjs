@@ -2,7 +2,8 @@
 //
 // Three harnesses -- decoder_snapshot.mjs, loader_test.mjs and export_test.mjs
 // -- each had a copy of this stub, near-identical but drifted in
-// small ways (one memoised getElementById, two did not; one stubbed
+// small ways (one memoised getElementById and the other two looked it up on
+// every call; one stubbed
 // URL.createObjectURL, two took the real URL). All three shared one flaw:
 // getContext() returned null.
 //

@@ -2,7 +2,7 @@
 # scripts came out of, which is kept outside this repository; fix it there
 # and re-copy. This repository is retired, so this copy exists only so
 # port/ can run standalone -- do not edit it to diverge.
-# Verify with tools/check_copies.sh ($CYTHERA_TOOLS). Source sha256 e2df6daf3ce0faa11b15356c9b4aa3007b752e367d6edd3faab0042020996e13.
+# Verify with tools/check_copies.sh ($CYTHERA_TOOLS). Source sha256 a58fbffb089bc0f06e5994e1b47bd5fa41bb9ac57533cb3c2f8994043e5e96e0.
 """Make the delvmod package importable on modern Python.
 
 delvmod is a 2014-era Python 2 library. Two things stop it importing on a
@@ -52,7 +52,7 @@ _ArgSpec = collections.namedtuple('ArgSpec', 'args varargs keywords defaults')
 
 
 def install_shims():
-    """Install both compatibility shims. Safe to call more than once."""
+    """Install both compatibility shims. Calling it again is harmless."""
     if not hasattr(inspect, 'getargspec'):
         def getargspec(func):
             fas = inspect.getfullargspec(func)

@@ -297,7 +297,7 @@ if (!builder) {
     /* The bytes are typed as hex and decoded in the script. Spelling them as
        `(ASCII character N)` costs 46 typed characters per patched byte and put
        one portrait at two hours; hex costs two. The keyboard is the whole cost
-       of this route, so this is the difference between usable and not. */
+       of this route, so this is the difference between usable and unusable. */
     check(/my unhex\("' \+ hexOf\(r\.now\)/.test(patchBody) &&
           /my unhex\("' \+ hexOf\(r\.old\)/.test(patchBody),
           'bytes are typed as hex, not spelled out',
